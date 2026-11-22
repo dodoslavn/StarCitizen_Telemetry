@@ -1,0 +1,13 @@
+{
+  "name": "sc-telemetry-receiver",
+  "version": "0.1.0",
+  "description": "Minimal in-memory receiver for StarCitizen_Telemetry (pure Node, no dependencies)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}
