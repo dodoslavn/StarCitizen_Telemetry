@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Windows.Forms;
-using ScTelemetry.Protobuf;
 using ScTelemetry.Telemetry;
 
 namespace ScTelemetry;
@@ -21,9 +20,10 @@ internal sealed class TrayApp : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Settings…", null, (_, _) => OnSettings());
         menu.Items.Add("Pull one frame (test)", null, (_, _) => PullOnce());
-        menu.Items.Add("Open config", null, (_, _) => OpenConfig());
-        menu.Items.Add("Reload config", null, (_, _) => Reload());
+        menu.Items.Add("Open config file", null, (_, _) => OpenConfig());
+        menu.Items.Add("Reload", null, (_, _) => Reload());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Application.Exit());
 
@@ -46,41 +46,48 @@ internal sealed class TrayApp : IDisposable
     {
         try
         {
-            if (AppCore.EnsureConfig())
+            if (!File.Exists(AppCore.ConfigPath))
             {
-                Info($"Created a config file:\n{AppCore.ConfigPath}\nEdit 'url' then Reload.");
-                _state = "edit config.ini (set url), then Reload";
-                return;
+                AppCore.EnsureConfig();          // write defaults
+                if (!ShowSettings())             // first run: let the user confirm/edit
+                {
+                    _state = "open Settings to configure";
+                    return;
+                }
             }
 
-            _state = "loading schema…";
-            RefreshStatus();
-
-            // Schema extraction can read a large exe; do it off the UI thread.
-            Task.Run(() =>
-            {
-                try
-                {
-                    AppConfig cfg = AppCore.LoadConfig();
-                    Schema schema = AppCore.LoadSchema(cfg);
-                    string root = AppCore.RootType(schema);
-                    var worker = new Worker(cfg, schema, root);
-                    worker.Start();
-                    _worker = worker;
-                    _state = "running";
-                }
-                catch (Exception e)
-                {
-                    _state = "error";
-                    Error(e.Message);
-                }
-            });
+            AppConfig cfg = AppCore.LoadConfig();
+            // The worker loads the schema lazily and idles until the game is running,
+            // so startup is instant and cheap.
+            var worker = new Worker(cfg);
+            worker.Start();
+            _worker = worker;
+            _state = "started";
         }
         catch (Exception e)
         {
             _state = "error";
             Error(e.Message);
         }
+    }
+
+    private void OnSettings()
+    {
+        if (ShowSettings()) Reload();
+    }
+
+    /// <summary>Show the settings dialog; returns true if the user saved.</summary>
+    private bool ShowSettings()
+    {
+        AppConfig cfg;
+        try { cfg = File.Exists(AppCore.ConfigPath) ? AppCore.LoadConfig() : AppConfig.Default(); }
+        catch { cfg = AppConfig.Default(); }
+
+        using var form = new SettingsForm(cfg);
+        if (form.ShowDialog() != DialogResult.OK) return false;
+        try { form.Result.Save(AppCore.ConfigPath); }
+        catch (Exception e) { Error("Could not save config: " + e.Message); return false; }
+        return true;
     }
 
     private void Reload()
@@ -115,22 +122,15 @@ internal sealed class TrayApp : IDisposable
         Worker? w = _worker;
         string text;
         if (w == null)
-        {
             text = _state;
-        }
         else if (w.LastError != null)
-        {
             text = $"error: {Trim(w.LastError, 60)}";
-        }
+        else if (w.Phase == "waiting for game")
+            text = "waiting for game…";
         else if (w.LastOkUtc is { } ok)
-        {
-            int ago = (int)(DateTime.UtcNow - ok).TotalSeconds;
-            text = $"ok · {w.Sent} sent · {ago}s ago";
-        }
+            text = $"ok · {w.Sent} sent · {(int)(DateTime.UtcNow - ok).TotalSeconds}s ago";
         else
-        {
-            text = _state;
-        }
+            text = w.Phase;
 
         _statusItem.Text = text;
         _tray.Text = Trim("SC Telemetry · " + text, 63);   // NotifyIcon.Text max 63 chars

@@ -9,7 +9,7 @@ internal sealed class Uploader : IDisposable
     private readonly string _url;
     private readonly HttpClient _http;
 
-    public Uploader(string url, bool sslVerify)
+    public Uploader(string url, bool sslVerify, string token)
     {
         _url = url;
         var handler = new HttpClientHandler();
@@ -17,6 +17,8 @@ internal sealed class Uploader : IDisposable
             handler.ServerCertificateCustomValidationCallback =
                 HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+        if (!string.IsNullOrWhiteSpace(token))
+            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
     public async Task PostAsync(string json, CancellationToken ct)

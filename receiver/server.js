@@ -14,6 +14,7 @@ const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_BODY = 1 << 20;        // 1 MiB cap on a posted frame
 const HISTORY = 50;              // frames kept in memory
+const AUTH_TOKEN = process.env.AUTH_TOKEN || '';   // if set, required on POST /telemetry
 
 const state = {
   latest: null,                 // parsed JSON of the last frame
@@ -35,6 +36,10 @@ const server = http.createServer((req, res) => {
 });
 
 function ingest(req, res) {
+  if (AUTH_TOKEN && req.headers.authorization !== `Bearer ${AUTH_TOKEN}`) {
+    req.resume();   // drain the body we're rejecting
+    return json(res, 401, { error: 'unauthorized' });
+  }
   let size = 0;
   const chunks = [];
   req.on('data', (c) => {

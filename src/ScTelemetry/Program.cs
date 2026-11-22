@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using ScTelemetry.Protobuf;
 using ScTelemetry.Telemetry;
 
 namespace ScTelemetry;
@@ -13,6 +12,12 @@ internal static class Program
         // Console helpers for headless testing from a terminal.
         if (args.Contains("--once")) return Console_(once: true);
         if (args.Contains("--print")) return Console_(once: false);
+
+        // Make sure no stray exception ever pops a crash dialog at the user.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) => Log.Write("UI", e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Write("domain", e.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) => { Log.Write("task", e.Exception); e.SetObserved(); };
 
         ApplicationConfiguration.Initialize();
         using var app = new TrayApp();
@@ -32,10 +37,8 @@ internal static class Program
                 return 1;
             }
             AppConfig cfg = AppCore.LoadConfig();
-            Console.Error.WriteLine("loading schema from the game exe…");
-            Schema schema = AppCore.LoadSchema(cfg);
-            Console.Error.WriteLine($"schema: {schema.Messages.Count} messages, {schema.Enums.Count} enums");
-            using var worker = new Worker(cfg, schema, AppCore.RootType(schema));
+            using var worker = new Worker(cfg);
+            Console.Error.WriteLine("reading schema from the game exe on first frame…");
 
             do
             {

@@ -14,7 +14,7 @@ internal static class AppCore
     public static bool EnsureConfig()
     {
         if (File.Exists(ConfigPath)) return false;
-        File.WriteAllText(ConfigPath, DefaultConfig);
+        AppConfig.Default().Save(ConfigPath);
         return true;
     }
 
@@ -43,26 +43,4 @@ internal static class AppCore
     public static string RootType(Schema schema) =>
         schema.FindMessageEndingWith("TelemetryStreamResponse")
         ?? ".sc.game.telemetry.v1.TelemetryStreamResponse";
-
-    private const string DefaultConfig =
-        """
-        # StarCitizen_Telemetry configuration
-
-        # How often to pull data from the game, in seconds (decimals allowed).
-        interval = 1
-
-        # HTTP endpoint the decoded JSON is POSTed to.
-        url = https://example.com/telemetry
-
-        # Verify the endpoint's TLS certificate (true/false).
-        url_ssl_verify = true
-
-        # The game's local gRPC server (ip:port). Normally the default.
-        source = 127.0.0.1:50051
-
-        # Optional: full path to StarCitizen.exe. Leave empty to auto-detect.
-        # exe = C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Bin64\StarCitizen.exe
-        exe =
-
-        """;
 }

@@ -41,16 +41,27 @@ section appears only while you're seated in a ship.
 
 ## Configuration
 
-A plain INI file, `config.ini`, next to the exe (see [`config.example.ini`](config.example.ini)).
-On first run the app creates one for you — edit `url`, then pick **Reload config**.
+Edit everything from the tray **Settings…** window (with a *Test upload* button), or
+by hand in `config.ini` next to the exe (see [`config.example.ini`](config.example.ini)).
+On first run the Settings window opens with sensible defaults.
 
 | Key | Meaning | Default |
 |---|---|---|
 | `interval` | How often to pull, in seconds (decimals allowed) | `1` |
-| `url` | HTTP endpoint the JSON is POSTed to | *(required)* |
+| `url` | HTTP endpoint the JSON is POSTed to | `https://sctelemetry.dodoslav.eu/telemetry` |
+| `token` | Bearer token sent as `Authorization: Bearer <token>` (empty = none) | *(empty)* |
 | `url_ssl_verify` | Verify the endpoint's TLS certificate | `true` |
 | `source` | The game's gRPC server, `ip:port` | `127.0.0.1:50051` |
 | `exe` | Path to `StarCitizen.exe` (empty = auto-detect) | *(auto)* |
+
+## Behaviour
+
+- **Light and lazy.** While Star Citizen isn't running the app just idles (a cheap
+  process check every few seconds) and doesn't touch the network. It only reads the
+  game schema and starts streaming once the game is up.
+- **Nothing crashes at you.** Upload failures, TLS problems, a closed game — all are
+  caught and shown on the tray status line; details go to
+  `%LOCALAPPDATA%\ScTelemetry\error.log`.
 
 ## Enabling the game's telemetry
 
@@ -68,12 +79,13 @@ Check it's live from PowerShell: `Test-NetConnection 127.0.0.1 -Port 50051` → 
 
 ## Tray menu
 
+- **Settings…** — edit all settings in a window, with a *Test upload* button.
 - **Pull one frame (test)** — fetch, decode and open one frame as JSON (no upload).
-- **Open config** — open `config.ini`.
-- **Reload config** — re-read config and restart the pump.
+- **Open config file** — open `config.ini` in a text editor.
+- **Reload** — re-read config and restart the pump.
 - **Exit**.
 
-The status line shows `ok · N sent · Xs ago`, or the last error.
+The status line shows `waiting for game…`, `ok · N sent · Xs ago`, or the last error.
 
 ## Build & run
 

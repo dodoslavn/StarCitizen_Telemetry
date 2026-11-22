@@ -9,8 +9,16 @@ browser. Pure Node.js, **no dependencies**.
 ```bash
 cd receiver
 npm start            # or: node server.js
-# PORT=9000 node server.js   to change the port (default 8080)
+# PORT=9000 node server.js              change the port (default 8080)
+# HOST=127.0.0.4 node server.js         bind a specific address (default 0.0.0.0)
+# AUTH_TOKEN=secret node server.js      require 'Authorization: Bearer secret' on POST /telemetry
 ```
+
+### Auth
+
+If `AUTH_TOKEN` is set, `POST /telemetry` requires a matching
+`Authorization: Bearer <token>` header (401 otherwise). The GET view endpoints stay
+open. If `AUTH_TOKEN` is unset, uploads are accepted without a token (dev mode).
 
 Then point the Windows app's `config.ini` at it:
 
