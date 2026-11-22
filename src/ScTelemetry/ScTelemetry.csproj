@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ScTelemetry</AssemblyName>
+    <RootNamespace>ScTelemetry</RootNamespace>
+    <Version>0.1.0</Version>
+    <!-- Lets the project build (not run) on non-Windows CI/dev machines. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- No NuGet packages: everything is hand-rolled on the .NET base class library. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ScTelemetry.Tests" />
+  </ItemGroup>
+
+</Project>
