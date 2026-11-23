@@ -37,6 +37,7 @@ internal sealed class Worker : IDisposable
     public long Sent { get; private set; }
     public string? LastRawJson { get; private set; }       // decoded frame (what the game gave)
     public string? LastProcessedJson { get; private set; } // the envelope that gets uploaded
+    public Dictionary<string, object?>? LastFrame { get; private set; } // decoded frame object (for the local server)
 
     public Worker(AppConfig cfg)
     {
@@ -76,19 +77,31 @@ internal sealed class Worker : IDisposable
                     TelemetryUp = false;
                     wait = IdlePoll;
                 }
+                else if (!_cfg.SendData && !_cfg.LocalServerEnabled)
+                {
+                    Phase = "idle (sending + local server both off)";
+                    wait = IdlePoll;
+                }
                 else if (!EnsureSchema())
                 {
                     wait = interval;
                 }
                 else
                 {
-                    var (_, processed) = await CaptureAsync(ct);   // sets TelemetryUp
-                    await _uploader.PostAsync(processed, ct);
-                    UploadUp = true;
-                    LastOkUtc = DateTime.UtcNow;
+                    var (_, processed) = await CaptureAsync(ct);   // sets TelemetryUp + LastFrame
+                    if (_cfg.SendData)
+                    {
+                        await _uploader.PostAsync(processed, ct);
+                        UploadUp = true;
+                        LastOkUtc = DateTime.UtcNow;
+                        Sent++;
+                        Phase = "uploading";
+                    }
+                    else
+                    {
+                        Phase = "serving locally";
+                    }
                     LastError = null;
-                    Sent++;
-                    Phase = "uploading";
                 }
             }
             catch (OperationCanceledException) { break; }
@@ -118,6 +131,7 @@ internal sealed class Worker : IDisposable
         byte[] frame = await _game.PullFrameAsync(ct);
         Dictionary<string, object?> decoded = _decoder!.Decode(frame, _rootType);
         TelemetryUp = true;
+        LastFrame = decoded;
 
         string raw = JsonSerializer.Serialize(decoded, JsonOpts);
         var envelope = new Dictionary<string, object?>

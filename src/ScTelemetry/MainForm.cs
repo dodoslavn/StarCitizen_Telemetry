@@ -25,8 +25,16 @@ internal sealed class MainForm : Form
 
     // controls
     private readonly Button _startStop = new() { Width = 120, Height = 30 };
+    private readonly CheckBox _send = new() { Text = "Send data to the server (upload)", AutoSize = true };
     private readonly Label _lastUpload = new() { AutoSize = true };
 
+    // local server
+    private readonly CheckBox _localOn = new() { Text = "Expose latest frame over local HTTP (no auth)", AutoSize = true };
+    private readonly TextBox _localBind = new() { Width = 150 };
+    private readonly TextBox _localPort = new() { Width = 70 };
+    private readonly Label _localStatus = new() { AutoSize = true };
+
+    private bool _loading;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1000 };
 
     public MainForm(TrayApp tray, AppConfig cfg)
@@ -46,6 +54,7 @@ internal sealed class MainForm : Form
         root.Controls.Add(StatusCard());
         root.Controls.Add(SettingsCard());
         root.Controls.Add(ControlsCard());
+        root.Controls.Add(LocalCard());
         root.Controls.Add(Footer());
         Controls.Add(root);
 
@@ -112,11 +121,28 @@ internal sealed class MainForm : Form
         row.Controls.Add(_startStop);
         row.Controls.Add(data);
 
+        _send.CheckedChanged += (_, _) => { if (!_loading) _tray.SetSendData(_send.Checked); };
+
         var wrap = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Fill, WrapContents = false };
         wrap.Controls.Add(row);
+        wrap.Controls.Add(_send);
         wrap.Controls.Add(_lastUpload);
         return Card("Collection", wrap);
     }
+
+    private Control LocalCard()
+    {
+        var g = Grid(2);
+        Row(g, "", _localOn);
+        Row(g, "Bind address", _localBind);
+        Row(g, "Port", _localPort);
+        Row(g, "", _localStatus);
+
+        _localOn.CheckedChanged += (_, _) => { if (!_loading) { _tray.SetLocal(_localOn.Checked, _localBind.Text.Trim(), ParsePort()); Refresh_(); } };
+        return Card("Local server", g);
+    }
+
+    private int ParsePort() => int.TryParse(_localPort.Text.Trim(), out var p) && p is > 0 and < 65536 ? p : 8099;
 
     private Control Footer()
     {
@@ -176,6 +202,7 @@ internal sealed class MainForm : Form
 
     private void LoadFrom(AppConfig cfg)
     {
+        _loading = true;
         _url.Text = cfg.Url;
         _ssl.Checked = cfg.UrlSslVerify;
         _auth.SelectedIndex = cfg.UseBearer ? 1 : 0;
@@ -183,6 +210,11 @@ internal sealed class MainForm : Form
         _token.Enabled = cfg.UseBearer;
         _source.Text = cfg.Source;
         _interval.Text = cfg.IntervalSeconds.ToString(CultureInfo.InvariantCulture);
+        _send.Checked = cfg.SendData;
+        _localOn.Checked = cfg.LocalServerEnabled;
+        _localBind.Text = cfg.LocalBind;
+        _localPort.Text = cfg.LocalPort.ToString(CultureInfo.InvariantCulture);
+        _loading = false;
     }
 
     private AppConfig? ReadInto()
@@ -205,6 +237,10 @@ internal sealed class MainForm : Form
             Token = _token.Text.Trim(),
             Source = _source.Text.Trim().Length > 0 ? _source.Text.Trim() : "127.0.0.1:50051",
             IntervalSeconds = secs,
+            SendData = _send.Checked,
+            LocalServerEnabled = _localOn.Checked,
+            LocalBind = _localBind.Text.Trim().Length > 0 ? _localBind.Text.Trim() : "127.0.0.1",
+            LocalPort = ParsePort(),
         };
     }
 
@@ -254,14 +290,34 @@ internal sealed class MainForm : Form
         Set(_dotGame, _lblGame, "Game running", w?.GameRunning == true, "yes", "no");
         Set(_dotTele, _lblTele, "Game telemetry (gRPC)", w?.TelemetryUp == true, "connected", w?.GameRunning == true ? "down" : "idle", neutralWhenGameOff: true, gameOn: w?.GameRunning == true);
         Set(_dotSchema, _lblSchema, "Telemetry metadata", w?.SchemaLoaded == true, "loaded", "not loaded");
-        Set(_dotUpload, _lblUpload, "Upload endpoint", w?.UploadUp == true, "ok", (w?.LastError != null) ? "error" : "unknown");
+
+        if (!_tray.Config.SendData)
+        {
+            _dotUpload.ForeColor = Theme.Grey;
+            _lblUpload.Text = "Upload endpoint: sending off";
+            _lblUpload.ForeColor = Theme.Muted;
+        }
+        else
+        {
+            Set(_dotUpload, _lblUpload, "Upload endpoint", w?.UploadUp == true, "ok", (w?.LastError != null) ? "error" : "unknown");
+        }
 
         _lastUpload.Text = w?.LastOkUtc is { } ok
             ? "Last successful upload: " + ok.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
             : "Last successful upload: never";
         _lastUpload.ForeColor = Theme.Muted;
 
+        UpdateLocalStatus();
         _tray.UpdateIcon();
+    }
+
+    private void UpdateLocalStatus()
+    {
+        LocalServer ls = _tray.Local;
+        if (!_tray.Config.LocalServerEnabled) { _localStatus.Text = "off"; _localStatus.ForeColor = Theme.Muted; }
+        else if (ls.Error != null) { _localStatus.Text = "error: " + ls.Error; _localStatus.ForeColor = Theme.Red; }
+        else if (ls.Running) { _localStatus.Text = "serving at " + ls.Prefix.Replace("+", _tray.Config.LocalBind); _localStatus.ForeColor = Theme.Green; }
+        else { _localStatus.Text = "starting…"; _localStatus.ForeColor = Theme.Muted; }
     }
 
     private static void Set(Label dot, Label text, string caption, bool ok, string okWord, string badWord, bool neutralWhenGameOff = false, bool gameOn = true)

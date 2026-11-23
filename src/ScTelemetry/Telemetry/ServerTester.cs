@@ -22,11 +22,14 @@ internal static class ServerTester
         if (!sslVerify) handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
 
-        // 1) is the server up? hit <origin>/api/ping for a dynamic response
+        // 1) is the server up? derive the ping URL (replace the last path segment with "ping")
         try
         {
-            var origin = new Uri(url).GetLeftPart(UriPartial.Authority);
-            using var resp = await http.GetAsync(origin + "/api/ping", ct);
+            var uri = new Uri(url);
+            var segs = uri.AbsolutePath.TrimEnd('/').Split('/');
+            if (segs.Length > 0) segs[^1] = "ping";
+            string pingUrl = uri.GetLeftPart(UriPartial.Authority) + string.Join('/', segs);
+            using var resp = await http.GetAsync(pingUrl, ct);
             string body = await resp.Content.ReadAsStringAsync(ct);
             if (resp.IsSuccessStatusCode && body.Contains("\"nonce\""))
             {

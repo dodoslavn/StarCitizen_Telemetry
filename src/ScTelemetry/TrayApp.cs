@@ -12,9 +12,12 @@ internal sealed class TrayApp : IDisposable
     private AppConfig _cfg;
     private Worker? _worker;
     private MainForm? _window;
+    private readonly LocalServer _local;
 
     public bool Exiting { get; private set; }
     public Worker? CurrentWorker => _worker;
+    public AppConfig Config => _cfg;
+    public LocalServer Local => _local;
 
     public TrayApp()
     {
@@ -29,7 +32,9 @@ internal sealed class TrayApp : IDisposable
         _tray = new NotifyIcon { Text = "SCTelemetry", Visible = true, ContextMenuStrip = menu };
         _tray.DoubleClick += (_, _) => ShowWindow();
 
+        _local = new LocalServer(() => _worker?.LastFrame);
         StartWorker(paused: false);
+        ConfigureLocal();
         UpdateIcon();
 
         _timer.Tick += (_, _) => UpdateIcon();
@@ -51,6 +56,13 @@ internal sealed class TrayApp : IDisposable
         _cfg = cfg;
         try { cfg.Save(AppCore.ConfigPath); } catch { }
         StartWorker(wasPaused);
+        ConfigureLocal();
+    }
+
+    private void ConfigureLocal()
+    {
+        if (_cfg.LocalServerEnabled) _local.Start(_cfg.LocalBind, _cfg.LocalPort);
+        else _local.Stop();
     }
 
     public void ToggleRun()
@@ -58,6 +70,20 @@ internal sealed class TrayApp : IDisposable
         if (_worker == null) { StartWorker(false); return; }
         if (_worker.Paused) _worker.Resume(); else _worker.Pause();
     }
+
+    // Live toggles (the worker reads _cfg each tick, so no restart needed for these).
+    public void SetSendData(bool on) { _cfg.SendData = on; SaveCfg(); }
+
+    public void SetLocal(bool on, string bind, int port)
+    {
+        _cfg.LocalServerEnabled = on;
+        _cfg.LocalBind = string.IsNullOrWhiteSpace(bind) ? "127.0.0.1" : bind;
+        _cfg.LocalPort = port is > 0 and < 65536 ? port : 8099;
+        SaveCfg();
+        ConfigureLocal();
+    }
+
+    private void SaveCfg() { try { _cfg.Save(AppCore.ConfigPath); } catch { } }
 
     private void ShowWindow()
     {
@@ -105,6 +131,7 @@ internal sealed class TrayApp : IDisposable
     public void Dispose()
     {
         _timer.Dispose();
+        _local.Dispose();
         _worker?.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
