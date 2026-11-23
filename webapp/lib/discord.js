@@ -12,7 +12,6 @@ function authorizeUrl(state) {
     response_type: 'code',
     scope: 'identify',
     state,
-    prompt: 'none',
   });
   return 'https://discord.com/api/oauth2/authorize?' + q.toString();
 }
