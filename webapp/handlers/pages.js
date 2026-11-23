@@ -233,7 +233,7 @@ function groupPage(req, res, ctx) {
   }
   const isOwner = g.ownerId === user.id;
   const inviteUrl = `${config.baseUrl}/join/${g.inviteCode}`;
-  const latestUrl = `${config.baseUrl}/api/groups/${g.id}/latest?key=${g.readKey}`;
+  const latestUrl = `${config.baseUrl}${config.apiPrefix}/groups/${g.id}/latest?key=${g.readKey}`;
 
   const accountRows = store.memberUserIds(g.id).map((uid) => {
     const u = store.getUser(uid);
@@ -366,6 +366,7 @@ async function joinSubmit(req, res, ctx) {
 
 function apiDocs(req, res, ctx) {
   const b = config.baseUrl;
+  const pre = config.apiPrefix;
   const ep = (method, path, desc, auth, example, sample) => `
     <div class="card">
       <div class="ep"><span class="method ${method.toLowerCase()}">${method}</span> <code>${esc(path)}</code></div>
@@ -376,59 +377,119 @@ function apiDocs(req, res, ctx) {
 
   const body = `
     <h1>API</h1>
-    <p class="muted">All responses are JSON. Base URL <code>${esc(b)}</code>. A source's bearer token comes from its
-      <a href="/sources">Edit</a> page; a group's read key from its page.</p>
+    <p class="muted">All responses are JSON. The API is versioned under
+      <code>${esc(pre)}</code> (the older <code>/api/…</code> paths still work).
+      A source's bearer token comes from its <a href="/sources">Edit</a> page;
+      a group's read key from its page. Base URL <code>${esc(b)}</code>.</p>
 
-    <h2>Is it up? / are my credentials valid?</h2>
-    ${ep('GET', '/api/ping',
-      'Liveness check with a dynamic response (time + nonce), so a client can prove it reached this app.',
+    <h2>Server aliveness</h2>
+    ${ep('GET', pre + '/ping',
+      'Liveness check. The response changes every call (time + nonce), so a client can prove it really reached this server.',
       'none',
-      `curl ${b}/api/ping`,
-      '{ "app": "SCTelemetry", "ok": true, "time": "...", "uptimeSec": 1234, "nonce": "a1b2c3d4" }')}
-    ${ep('GET', '/api/telemetry',
-      'Returns the source for a valid token — also the simplest credential test.',
+      `curl ${b}${pre}/ping`,
+`{
+  "app": "SCTelemetry",
+  "ok": true,
+  "time": "2026-11-23T12:00:00.000Z",
+  "uptimeSec": 1234,
+  "nonce": "a1b2c3d4e5f6a7b8"
+}`)}
+
+    <h2>Login test</h2>
+    ${ep('GET', pre + '/telemetry',
+      'Returns the source that owns the token. Use it to check that your credentials are accepted.',
       '<code>Authorization: Bearer &lt;source token&gt;</code>',
-      `curl ${b}/api/telemetry -H "Authorization: Bearer <source token>"`,
-      '{ "ok": true, "source": "MainRig", "n": 1, "available": 100, "updatedAt": "...", "frame": { ... } }')}
+`curl ${b}${pre}/telemetry \\
+  -H "Authorization: Bearer <source token>"`,
+`{
+  "ok": true,
+  "source": "MainRig",
+  "n": 1,
+  "available": 100,
+  "updatedAt": "2026-11-23T12:00:00.000Z",
+  "frame": { "telemetry": { "...": "..." } }
+}`)}
 
     <h2>Write to a source</h2>
-    ${ep('POST', '/api/telemetry',
+    ${ep('POST', pre + '/telemetry',
       'Store one frame. This is what the desktop tool calls. Only valid JSON is accepted.',
       '<code>Authorization: Bearer &lt;source token&gt;</code>',
-      `curl -X POST ${b}/api/telemetry \\\n  -H "Authorization: Bearer <source token>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"telemetry": { "...": "..." }}'`,
-      '{ "ok": true, "source": "MainRig", "stored": 42 }')}
+`curl -X POST ${b}${pre}/telemetry \\
+  -H "Authorization: Bearer <source token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"telemetry": { "...": "..." }}'`,
+`{
+  "ok": true,
+  "source": "MainRig",
+  "stored": 42
+}`)}
 
     <h2>Read a source</h2>
-    ${ep('GET', '/api/telemetry?n=1',
-      'The n-th latest frame (n=1 newest, up to the source history size).',
+    ${ep('GET', pre + '/telemetry?n=1',
+      'The n-th latest frame — n=1 is newest, up to the source history size.',
       '<code>Authorization: Bearer &lt;source token&gt;</code>',
-      `curl "${b}/api/telemetry?n=2" -H "Authorization: Bearer <source token>"`,
-      '{ "ok": true, "source": "MainRig", "n": 2, "available": 100, "updatedAt": "...", "frame": { ... } }')}
+`curl "${b}${pre}/telemetry?n=2" \\
+  -H "Authorization: Bearer <source token>"`,
+`{
+  "ok": true,
+  "source": "MainRig",
+  "n": 2,
+  "available": 100,
+  "updatedAt": "2026-11-23T12:00:00.000Z",
+  "frame": { "telemetry": { "...": "..." } }
+}`)}
 
     <h2>Read a group (read-only)</h2>
-    ${ep('GET', '/api/groups/:id/latest',
-      'Newest frame from every source, keyed by &lt;account&gt;_&lt;source&gt;.',
+    ${ep('GET', pre + '/groups/:id/latest',
+      'The newest frame from every source in the group, keyed by &lt;account&gt;_&lt;source&gt;.',
       '<code>?key=&lt;read key&gt;</code> or <code>Authorization: Bearer &lt;read key&gt;</code>',
-      `curl "${b}/api/groups/<id>/latest?key=<read key>"`,
-      '{ "group": { "id": "...", "name": "Squad" }, "sources": { "Pilot_MainRig": { ... }, "Wingman_Rig": { ... } } }')}
-    ${ep('GET', '/api/groups/:id/history',
-      'Full in-memory history per source.',
+`curl "${b}${pre}/groups/<id>/latest?key=<read key>"`,
+`{
+  "group": { "id": "...", "name": "Squad" },
+  "sources": {
+    "Pilot_MainRig": { "telemetry": { "...": "..." } },
+    "Wingman_Rig":   { "telemetry": { "...": "..." } }
+  }
+}`)}
+    ${ep('GET', pre + '/groups/:id/history',
+      'The full in-memory history for every source in the group.',
       '<code>?key=&lt;read key&gt;</code> or bearer',
-      `curl "${b}/api/groups/<id>/history?key=<read key>"`,
-      '{ "group": { ... }, "sources": { "Pilot_MainRig": { "count": 100, "frames": [ ... ] } } }')}
+`curl "${b}${pre}/groups/<id>/history?key=<read key>"`,
+`{
+  "group": { "id": "...", "name": "Squad" },
+  "sources": {
+    "Pilot_MainRig": {
+      "count": 100,
+      "frames": [ { "at": "...", "frame": { "...": "..." } } ]
+    }
+  }
+}`)}
 
     <h2>Pick one value — ?path=</h2>
     <div class="card">
-      <p>Add <code>path</code> (a dotted JSON path) to any read call to get just that value. Missing → <code>-</code>.</p>
-      <pre>curl "${esc(b)}/api/telemetry?path=telemetry.actor.state.uec_balance" \\\n  -H "Authorization: Bearer <source token>"
-# -> 15001986
+      <p>Add <code>path</code> (a dotted JSON path) to any read call to get back just
+         that value instead of the whole frame. A missing path returns <code>-</code>.</p>
+      <p class="muted">One source:</p>
+      <pre>${esc(`curl "${b}${pre}/telemetry?path=telemetry.actor.state.uec_balance" \\
+  -H "Authorization: Bearer <source token>"
 
-curl "${esc(b)}/api/groups/<id>/latest?key=<read key>&path=telemetry.vehicle.state.class_name"
-# -> { "group": {...}, "sources": { "Pilot_MainRig": "ANVL Asgard", "Wingman_Rig": "-" } }</pre>
+15001986`)}</pre>
+      <p class="muted">A group (one value per source):</p>
+      <pre>${esc(`curl "${b}${pre}/groups/<id>/latest?key=<read key>&path=telemetry.vehicle.state.class_name"
+
+{
+  "group": { "name": "Squad" },
+  "sources": {
+    "Pilot_MainRig": "ANVL Asgard",
+    "Wingman_Rig": "-"
+  }
+}`)}</pre>
     </div>
 
     <h2>Errors</h2>
-    <div class="card"><p class="muted"><code>401</code> bad/missing token or key · <code>404</code> unknown group · <code>400</code> invalid JSON body · <code>413</code> body too large.</p></div>`;
+    <div class="card"><p class="muted"><code>401</code> bad or missing token / key ·
+      <code>404</code> unknown group · <code>400</code> invalid JSON body ·
+      <code>413</code> body too large.</p></div>`;
 
   return http.sendHtml(res, 200, layout({ title: 'API', user: ctx.user, active: 'api', body }));
 }

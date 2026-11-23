@@ -47,10 +47,16 @@ const routes = [
   ['GET', '/about', pages.about],
   ['GET', '/api', pages.apiDocs],
 
-  // JSON API
+  // JSON API — versioned (/api/v1) is canonical; /api/* and /telemetry kept as aliases
+  ['GET', '/api/v1/ping', api.ping],
+  ['POST', '/api/v1/telemetry', api.ingest],
+  ['GET', '/api/v1/telemetry', api.sourceRead],
+  ['GET', '/api/v1/groups/:id/latest', api.groupLatest],
+  ['GET', '/api/v1/groups/:id/history', api.groupHistory],
+
   ['GET', '/api/ping', api.ping],
   ['POST', '/api/telemetry', api.ingest],
-  ['POST', '/telemetry', api.ingest],          // alias
+  ['POST', '/telemetry', api.ingest],
   ['GET', '/api/telemetry', api.sourceRead],
   ['GET', '/api/groups/:id/latest', api.groupLatest],
   ['GET', '/api/groups/:id/history', api.groupHistory],

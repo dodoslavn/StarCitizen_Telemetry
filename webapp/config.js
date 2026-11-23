@@ -45,6 +45,7 @@ config.app = {
   repo: 'https://github.com/dodoslavn/StarCitizen_Telemetry',
 };
 
+config.apiPrefix = '/api/v1';   // versioned API base; legacy /api/* kept as aliases
 config.redirectUri = config.baseUrl + '/auth/discord/callback';
 config.discordConfigured = Boolean(config.discord.clientId && config.discord.clientSecret);
 

@@ -107,7 +107,7 @@ const STYLE = `
   code { background: #04090e; color: #8fe9ff; padding: 2px 6px; border: 1px solid var(--line); border-radius: 2px; word-break: break-all; }
   code.tok { word-break: normal; white-space: nowrap; }
   td .actions { display: flex; flex-wrap: wrap; gap: 6px; }
-  pre { background: #04090e; border: 1px solid var(--line); border-left: 2px solid var(--accent); padding: 12px; overflow: auto; color: #cfe8f2; }
+  pre { background: #04090e; border: 1px solid var(--line); border-left: 2px solid var(--accent); padding: 12px; color: #cfe8f2; white-space: pre-wrap; overflow-wrap: anywhere; }
 
   input[type=text], input[type=number], select {
     background: #04090e; color: var(--head); border: 1px solid var(--line);
