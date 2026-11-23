@@ -12,6 +12,17 @@ patches), and POSTs the result to a URL you configure.
 library, no protobuf library; the schema reader, gRPC call and decoder are all
 hand-rolled.
 
+## Download
+
+Grab the latest **`SCTelemetry-Integrator.exe`** from the
+[**Releases**](https://github.com/scpages/telemetry/releases) page and run it —
+it's a self-contained build, so there's nothing else to install (the .NET runtime
+is bundled in). Put a `config.ini` beside it, or just use the Settings window.
+
+> Maintainers: a new release is built automatically when you push a version tag
+> (`git tag v0.4.0 && git push origin v0.4.0`), or from the Actions tab.
+> See [`.github/workflows/release.yml`](.github/workflows/release.yml).
+
 ## Repository
 
 | Folder | What |

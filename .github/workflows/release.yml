@@ -1,0 +1,52 @@
+name: release
+
+# Build the Integrator as a self-contained Windows binary and publish it to a
+# GitHub Release. Trigger by pushing a version tag (e.g. `git tag v0.4.0` then
+# `git push origin v0.4.0`), or run it by hand from the Actions tab.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.4.0)'
+        required: true
+
+permissions:
+  contents: write   # needed to create the release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      # One file that bundles the .NET runtime, so users just download and run it.
+      - name: Publish self-contained single-file exe
+        shell: pwsh
+        run: >
+          dotnet publish integrator/Integrator.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish
+      - name: Rename asset
+        shell: pwsh
+        run: Copy-Item publish/Integrator.exe SCTelemetry-Integrator.exe
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ inputs.tag || github.ref_name }}"
+          SCTelemetry-Integrator.exe
+          --target "${{ github.sha }}"
+          --title "SCTelemetry Integrator ${{ inputs.tag || github.ref_name }}"
+          --notes "Self-contained Windows build — no .NET install needed. Download **SCTelemetry-Integrator.exe** and run it."
