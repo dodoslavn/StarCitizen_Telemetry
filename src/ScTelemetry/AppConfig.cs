@@ -10,11 +10,15 @@ namespace ScTelemetry;
 internal sealed class AppConfig
 {
     public double IntervalSeconds { get; set; } = 1.0;
-    public string Url { get; set; } = "https://sctelemetry.dodoslav.eu/telemetry";
+    public string Url { get; set; } = "https://sctelemetry.dodoslav.eu/api/telemetry";
+    public bool UseBearer { get; set; } = true;             // authorization: none | bearer
     public string Token { get; set; } = "";                 // bearer token sent on upload
     public bool UrlSslVerify { get; set; } = true;
     public string Source { get; set; } = "127.0.0.1:50051";
     public string ExePath { get; set; } = "";               // empty = auto-detect
+
+    /// <summary>The token actually sent (empty when auth is None).</summary>
+    public string EffectiveToken => UseBearer ? Token : "";
 
     public static AppConfig Default() => new();
 
@@ -28,6 +32,7 @@ internal sealed class AppConfig
             cfg.IntervalSeconds = secs;
 
         if (ini.TryGetValue("url", out var url)) cfg.Url = url.Trim();
+        if (ini.TryGetValue("auth", out var auth)) cfg.UseBearer = !auth.Trim().Equals("none", StringComparison.OrdinalIgnoreCase);
         if (ini.TryGetValue("token", out var token)) cfg.Token = token.Trim();
         if (ini.TryGetValue("url_ssl_verify", out var verify)) cfg.UrlSslVerify = ParseBool(verify, true);
         if (ini.TryGetValue("source", out var source) && source.Trim().Length > 0) cfg.Source = source.Trim();
@@ -48,7 +53,9 @@ internal sealed class AppConfig
         sb.AppendLine("# HTTP endpoint the decoded JSON is POSTed to.");
         sb.AppendLine($"url = {Url}");
         sb.AppendLine();
-        sb.AppendLine("# Bearer token sent as 'Authorization: Bearer <token>' (leave empty for none).");
+        sb.AppendLine("# Authorization: none | bearer");
+        sb.AppendLine($"auth = {(UseBearer ? "bearer" : "none")}");
+        sb.AppendLine("# Bearer token sent as 'Authorization: Bearer <token>' when auth = bearer.");
         sb.AppendLine($"token = {Token}");
         sb.AppendLine();
         sb.AppendLine("# Verify the endpoint's TLS certificate (true/false).");

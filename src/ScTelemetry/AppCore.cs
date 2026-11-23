@@ -5,6 +5,11 @@ namespace ScTelemetry;
 /// <summary>Shared bootstrap: locate config, load the schema, prepare a worker.</summary>
 internal static class AppCore
 {
+    public const string Repo = "https://github.com/dodoslavn/StarCitizen_Telemetry";
+
+    public static string Version =>
+        typeof(AppCore).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "0.0.0";
+
     public static string ConfigPath => Path.Combine(AppContext.BaseDirectory, "config.ini");
 
     public static string CacheDir => Path.Combine(
