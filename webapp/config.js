@@ -39,7 +39,7 @@ const config = {
 };
 
 config.app = {
-  name: 'SCTelemetry',
+  name: 'SCTelemetry Web',
   tagline: 'Telemetry collector for Star Citizen',
   version: require('./package.json').version,
   repo: 'https://github.com/dodoslavn/StarCitizen_Telemetry',

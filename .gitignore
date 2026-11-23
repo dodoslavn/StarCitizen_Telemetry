@@ -8,4 +8,3 @@ config.ini
 node_modules/
 webapp/.env
 webapp/data/
-receiver/receiver.log

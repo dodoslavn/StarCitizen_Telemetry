@@ -16,17 +16,16 @@ hand-rolled.
 
 | Folder | What |
 |---|---|
-| `src/ScTelemetry/` | the Windows tray tool (C#, .NET 9) |
-| `tests/` | tests for the tool's decoder/extractor |
-| [`webapp/`](webapp/) | the telemetry **website** — Discord login, client credentials, groups, read API (Node, no deps) |
-| [`receiver/`](receiver/) | a minimal in-memory receiver for quick local end-to-end testing |
+| [`integrator/`](integrator/) | **SCTelemetry Integrator** — the Windows tray tool that reads the game and uploads JSON (C#, .NET 9) |
+| [`webapp/`](webapp/) | **SCTelemetry Web** — the telemetry website: Discord login, sources, groups, read API (Node, no deps) |
+| `tests/` | tests for the Integrator's decoder/extractor |
 
-The tool uploads to any of them. `webapp/` is the full service; `receiver/` is the throwaway tester.
+The Integrator uploads to **SCTelemetry Web** (or any HTTP endpoint you configure).
 
 ## How it works
 
 ```
-StarCitizen.exe ──gRPC/HTTP2──▶ ScTelemetry ──HTTP POST (JSON)──▶ your URL
+StarCitizen.exe ──gRPC/HTTP2──▶ Integrator ──HTTP POST (JSON)──▶ your URL
    (127.0.0.1:50051)                 │
                                      └─ schema extracted from StarCitizen.exe (cached)
 ```
@@ -53,13 +52,13 @@ section appears only while you're seated in a ship.
 ## Configuration
 
 Edit everything from the tray **Settings…** window (with a *Test upload* button), or
-by hand in `config.ini` next to the exe (see [`config.example.ini`](config.example.ini)).
+by hand in `config.ini` next to the exe (see [`integrator/config.example.ini`](integrator/config.example.ini)).
 On first run the Settings window opens with sensible defaults.
 
 | Key | Meaning | Default |
 |---|---|---|
 | `interval` | How often to pull, in seconds (decimals allowed) | `1` |
-| `url` | HTTP endpoint the JSON is POSTed to | `https://sctelemetry.dodoslav.eu/telemetry` |
+| `url` | HTTP endpoint the JSON is POSTed to | `https://sctelemetry.dodoslav.eu/api/v1/telemetry` |
 | `token` | Bearer token sent as `Authorization: Bearer <token>` (empty = none) | *(empty)* |
 | `url_ssl_verify` | Verify the endpoint's TLS certificate | `true` |
 | `source` | The game's gRPC server, `ip:port` | `127.0.0.1:50051` |
@@ -104,14 +103,14 @@ Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download).
 
 ```powershell
 # run from source
-dotnet run --project src\ScTelemetry
+dotnet run --project integrator
 
 # headless test in a terminal (prints decoded JSON, no tray)
-dotnet run --project src\ScTelemetry -- --once     # one frame
-dotnet run --project src\ScTelemetry -- --print    # loop
+dotnet run --project integrator -- --once     # one frame
+dotnet run --project integrator -- --print    # loop
 
 # tests (pure-protobuf logic; cross-platform)
-dotnet run --project tests\ScTelemetry.Tests
+dotnet run --project tests\Integrator.Tests
 ```
 
 ### Publish a single exe
@@ -119,13 +118,13 @@ dotnet run --project tests\ScTelemetry.Tests
 Framework-dependent (small; needs the [.NET Desktop Runtime 9](https://dotnet.microsoft.com/download)):
 
 ```powershell
-dotnet publish src\ScTelemetry -c Release -r win-x64 --self-contained false ^
+dotnet publish integrator -c Release -r win-x64 --self-contained false ^
   -p:PublishSingleFile=true
 ```
 
 Self-contained (large; no runtime needed): add `--self-contained true` instead.
 
-The exe lands in `src\ScTelemetry\bin\Release\net9.0-windows\win-x64\publish\`.
+The exe (`Integrator.exe`) lands in `integrator\bin\Release\net9.0-windows\win-x64\publish\`.
 Put `config.ini` beside it.
 
 ## Notes
