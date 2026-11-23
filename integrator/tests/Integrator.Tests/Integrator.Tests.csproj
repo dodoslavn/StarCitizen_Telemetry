@@ -11,7 +11,7 @@
 
   <!-- Test the pure-protobuf code directly (no WinForms), so tests run cross-platform. -->
   <ItemGroup>
-    <Compile Include="..\..\integrator\Protobuf\*.cs" />
+    <Compile Include="..\..\Protobuf\*.cs" />
   </ItemGroup>
 
 </Project>

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Integrator", "integrator\Integrator.csproj", "{0300FFA0-8507-4029-A1B2-51430C6E0CA0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Integrator", "Integrator.csproj", "{0300FFA0-8507-4029-A1B2-51430C6E0CA0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Integrator.Tests", "tests\Integrator.Tests\Integrator.Tests.csproj", "{3A5376FB-0B25-4A73-96CE-EFF6C10B5F14}"
 EndProject

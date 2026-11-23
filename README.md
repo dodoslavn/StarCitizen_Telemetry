@@ -16,9 +16,8 @@ hand-rolled.
 
 | Folder | What |
 |---|---|
-| [`integrator/`](integrator/) | **SCTelemetry Integrator** — the Windows tray tool that reads the game and uploads JSON (C#, .NET 9) |
-| [`webapp/`](webapp/) | **SCTelemetry Web** — the telemetry website: Discord login, sources, groups, read API (Node, no deps) |
-| `tests/` | tests for the Integrator's decoder/extractor |
+| [`integrator/`](integrator/) | **SCTelemetry Integrator** — the Windows tray tool that reads the game and uploads JSON (C#, .NET 9); its tests live in `integrator/tests/` |
+| [`web/`](web/) | **SCTelemetry Web** — the telemetry website: Discord login, sources, groups, read API (Node, no deps) |
 
 The Integrator uploads to **SCTelemetry Web** (or any HTTP endpoint you configure).
 
@@ -110,7 +109,7 @@ dotnet run --project integrator -- --once     # one frame
 dotnet run --project integrator -- --print    # loop
 
 # tests (pure-protobuf logic; cross-platform)
-dotnet run --project tests\Integrator.Tests
+dotnet run --project integrator\tests\Integrator.Tests
 ```
 
 ### Publish a single exe

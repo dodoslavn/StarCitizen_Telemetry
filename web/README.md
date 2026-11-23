@@ -53,7 +53,7 @@ DISCORD_CLIENT_SECRET=...
 ## Run
 
 ```bash
-cd webapp
+cd web
 cp .env.example .env    # then edit
 npm start               # node server.js
 ```

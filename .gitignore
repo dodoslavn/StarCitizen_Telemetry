@@ -6,5 +6,5 @@ config.ini
 
 # node
 node_modules/
-webapp/.env
-webapp/data/
+web/.env
+web/data/
