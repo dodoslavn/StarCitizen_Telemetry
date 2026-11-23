@@ -149,9 +149,11 @@ function sourceEditPage(req, res, ctx) {
     <h2>Bearer token</h2>
     <div class="card">
       <p class="muted">The desktop tool uses this to read and write this source.</p>
-      <p><code class="tok" title="${esc(src.token)}">${esc(src.token.slice(0, 10))}…</code>
-         <button class="secondary" type="button" onclick="navigator.clipboard.writeText('${esc(src.token)}');this.textContent='Copied'">Copy</button></p>
-      <form class="inline" method="post" action="/sources/${esc(src.id)}/rotate"><button class="secondary" type="submit">Rotate token</button></form>
+      <p>
+        <input id="tok" type="text" readonly value="${esc(src.token)}" style="width:56%">
+        <button class="secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('tok').value);this.textContent='Copied'">Copy</button>
+        <form class="inline" method="post" action="/sources/${esc(src.id)}/rotate"><button class="secondary" type="submit">Rotate</button></form>
+      </p>
     </div>
     <h2>History size</h2>
     <div class="card">
