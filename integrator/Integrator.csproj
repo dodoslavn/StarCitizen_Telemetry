@@ -9,7 +9,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>Integrator</AssemblyName>
     <RootNamespace>Integrator</RootNamespace>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <!-- Lets the project build (not run) on non-Windows CI/dev machines. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <!-- The test project lives under tests/; keep it out of this app's compile glob. -->

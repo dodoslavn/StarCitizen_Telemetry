@@ -52,6 +52,7 @@ internal static class Theme
                     ll.ForeColor = Text;
                     break;
                 case Label lb:
+                    if (lb.Tag as string == "keep") break;           // caller set a deliberate colour
                     lb.ForeColor = lb.Tag as string == "head" ? Head : Text;
                     break;
                 case Panel p:

@@ -5,7 +5,7 @@ using Integrator.Telemetry;
 
 namespace Integrator;
 
-/// <summary>The status + settings window.</summary>
+/// <summary>The status + settings window. Sections live on tabs so nothing scrolls.</summary>
 internal sealed class MainForm : Form
 {
     private readonly TrayApp _tray;
@@ -17,22 +17,27 @@ internal sealed class MainForm : Form
     // settings
     private readonly TextBox _url = new() { Width = 340 };
     private readonly CheckBox _ssl = new() { Text = "Verify TLS certificate", AutoSize = true };
-    private readonly ComboBox _auth = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
+    private readonly ComboBox _auth = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
     private readonly TextBox _token = new() { Width = 340 };
-    private readonly TextBox _source = new() { Width = 170 };
+    private readonly TextBox _source = new() { Width = 180 };
     private readonly TextBox _interval = new() { Width = 70 };
-    private readonly Label _testResult = new() { AutoSize = true, MaximumSize = new Size(480, 0) };
+    private readonly Label _testResult = new() { AutoSize = true, MaximumSize = new Size(440, 0) };
 
     // controls
-    private readonly Button _startStop = new() { Width = 120, Height = 30 };
+    private readonly Button _startStop = new() { Width = 120, Height = 32 };
     private readonly CheckBox _send = new() { Text = "Send data to the server (upload)", AutoSize = true };
     private readonly Label _lastUpload = new() { AutoSize = true };
 
     // local server
     private readonly CheckBox _localOn = new() { Text = "Expose latest frame over local HTTP (no auth)", AutoSize = true };
-    private readonly TextBox _localBind = new() { Width = 150 };
+    private readonly TextBox _localBind = new() { Width = 180 };
     private readonly TextBox _localPort = new() { Width = 70 };
     private readonly Label _localStatus = new() { AutoSize = true };
+
+    // tabs
+    private readonly FlowLayoutPanel _tabbar = new() { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Padding = new Padding(10, 8, 0, 0), Margin = new Padding(0) };
+    private readonly Panel _host = new() { Dock = DockStyle.Fill };
+    private readonly List<(Button btn, Control page)> _tabs = new();
 
     private bool _loading;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1000 };
@@ -44,160 +49,205 @@ internal sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
-        ClientSize = new Size(560, 640);
+        ClientSize = new Size(524, 470);
         BackColor = Theme.Bg;
 
         _auth.Items.AddRange(new object[] { "None", "Bearer" });
 
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(14), BackColor = Theme.Bg, AutoScroll = true };
-        root.Controls.Add(Header());
-        root.Controls.Add(StatusCard());
-        root.Controls.Add(SettingsCard());
-        root.Controls.Add(ControlsCard());
-        root.Controls.Add(LocalCard());
-        root.Controls.Add(Footer());
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Theme.Bg };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var header = Header();
+        root.Controls.Add(header, 0, 0);
+        root.Controls.Add(_tabbar, 0, 1);
+        root.Controls.Add(_host, 0, 2);
         Controls.Add(root);
+
+        AddTab("Status", StatusPage());
+        AddTab("Server", ServerPage());
+        AddTab("Game", GamePage());
+        AddTab("Local", LocalPage());
+        AddTab("About", AboutPage());
 
         LoadFrom(cfg);
         Theme.Apply(this);
-        StyleAccents();
+
+        // Theme.Apply paints every panel with the card colour; keep the chrome on Bg
+        // and only the content host as the lighter "card".
+        root.BackColor = Theme.Bg;
+        header.BackColor = Theme.Bg;
+        _tabbar.BackColor = Theme.Bg;
+        _host.BackColor = Theme.Panel;
+        Select(_tabs[0].btn.Text);
+
+        _auth.SelectedIndexChanged += (_, _) => _token.Enabled = _auth.SelectedIndex == 1;
 
         _timer.Tick += (_, _) => Refresh_();
         _timer.Start();
         Refresh_();
     }
 
-    // ---- sections ----
+    // ---- tab plumbing ----
+
+    private void AddTab(string name, Control page)
+    {
+        page.Dock = DockStyle.Fill;
+        _host.Controls.Add(page);
+
+        var b = new Button
+        {
+            Text = name, AutoSize = false, Width = 92, Height = 30,
+            FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 3, 0),
+            Font = new Font("Segoe UI", 9f), TabStop = false,
+        };
+        b.FlatAppearance.BorderSize = 0;
+        b.Click += (_, _) => Select(name);
+        _tabbar.Controls.Add(b);
+        _tabs.Add((b, page));
+    }
+
+    private void Select(string name)
+    {
+        foreach (var (btn, page) in _tabs)
+        {
+            bool on = btn.Text == name;
+            page.Visible = on;
+            if (on) page.BringToFront();
+            btn.BackColor = on ? Theme.Panel : Theme.Bg;
+            btn.ForeColor = on ? Theme.Accent : Theme.Muted;
+            btn.Font = new Font("Segoe UI", 9f, on ? FontStyle.Bold : FontStyle.Regular);
+        }
+    }
+
+    // ---- pages ----
 
     private Control Header()
     {
-        var l = new Label { Text = "SCTELEMETRY", AutoSize = true, ForeColor = Theme.Accent, Font = new Font("Segoe UI", 15, FontStyle.Bold), Margin = new Padding(2, 0, 0, 2) };
-        var sub = new Label { Text = "Telemetry collector for Star Citizen", AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(3, 0, 0, 10) };
-        var p = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Top, WrapContents = false };
-        p.Controls.Add(l); p.Controls.Add(sub);
+        var logo = new Label { Text = "SCTELEMETRY", AutoSize = true, ForeColor = Theme.Accent, Font = new Font("Segoe UI", 14, FontStyle.Bold), Margin = new Padding(2, 2, 0, 0), Tag = "keep" };
+        var sub = new Label { Text = "Integrator · Telemetry collector for Star Citizen", AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(3, 0, 0, 8), Tag = "keep" };
+        var p = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Top, WrapContents = false, Padding = new Padding(12, 10, 0, 0) };
+        p.Controls.Add(logo); p.Controls.Add(sub);
         return p;
     }
 
-    private Control StatusCard()
+    private Control StatusPage()
     {
-        var g = Grid(2);
-        AddStatus(g, _dotGame, _lblGame, "Game running");
-        AddStatus(g, _dotTele, _lblTele, "Game telemetry (gRPC)");
-        AddStatus(g, _dotSchema, _lblSchema, "Telemetry metadata");
-        AddStatus(g, _dotUpload, _lblUpload, "Upload endpoint");
-        return Card("Status", g);
+        var g = Page();
+        Full(g, StatusLine(_dotGame, _lblGame));
+        Full(g, StatusLine(_dotTele, _lblTele));
+        Full(g, StatusLine(_dotSchema, _lblSchema));
+        Full(g, StatusLine(_dotUpload, _lblUpload));
+
+        _startStop.Click += (_, _) => { _tray.ToggleRun(); Refresh_(); };
+        Full(g, Spacer(6));
+        Full(g, _startStop);
+        _lastUpload.ForeColor = Theme.Muted;
+        Full(g, _lastUpload);
+        return g;
     }
 
-    private Control SettingsCard()
+    private Control ServerPage()
     {
-        var g = Grid(2);
-        Row(g, "Upload URL", _url);
-        Row(g, "", _ssl);
-        Row(g, "Authorization", _auth);
-        Row(g, "Token", _token);
-        Row(g, "Game source", _source);
-        Row(g, "Interval (s)", _interval);
+        var g = Page();
+        _url.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        _token.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        Labeled(g, "Upload URL", _url);
+        Full(g, _ssl);
+        Labeled(g, "Authorization", _auth);
+        Labeled(g, "Token", _token);
+        Full(g, _send);
 
         var test = new Button { Text = "Test server + credentials", Width = 200, Height = 28 };
         test.Click += async (_, _) => await OnTest();
         var save = new Button { Text = "Save", Width = 90, Height = 28 };
         save.Click += (_, _) => OnSave();
-        var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+        var buttons = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 8, 0, 4) };
         buttons.Controls.Add(save); buttons.Controls.Add(test);
-        Row(g, "", buttons);
-        Row(g, "", _testResult);
-
-        _auth.SelectedIndexChanged += (_, _) => _token.Enabled = _auth.SelectedIndex == 1;
-        return Card("Settings", g);
-    }
-
-    private Control ControlsCard()
-    {
-        _startStop.Click += (_, _) => { _tray.ToggleRun(); Refresh_(); };
-        var data = new Button { Text = "Show latest data", Width = 150, Height = 30 };
-        data.Click += async (_, _) => await OnShowData();
-
-        var row = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top };
-        row.Controls.Add(_startStop);
-        row.Controls.Add(data);
+        Full(g, buttons);
+        Full(g, _testResult);
 
         _send.CheckedChanged += (_, _) => { if (!_loading) _tray.SetSendData(_send.Checked); };
-
-        var wrap = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, Dock = DockStyle.Fill, WrapContents = false };
-        wrap.Controls.Add(row);
-        wrap.Controls.Add(_send);
-        wrap.Controls.Add(_lastUpload);
-        return Card("Collection", wrap);
+        return g;
     }
 
-    private Control LocalCard()
+    private Control GamePage()
     {
-        var g = Grid(2);
-        Row(g, "", _localOn);
-        Row(g, "Bind address", _localBind);
-        Row(g, "Port", _localPort);
-        Row(g, "", _localStatus);
+        var g = Page();
+        Labeled(g, "Game source", _source);
+        Labeled(g, "Interval (s)", _interval);
+
+        var data = new Button { Text = "Show latest data", Width = 160, Height = 30 };
+        data.Click += async (_, _) => await OnShowData();
+        Full(g, Spacer(4));
+        Full(g, data);
+        Full(g, new Label { Text = "Pulls one frame from the game and shows the raw + processed JSON.", AutoSize = true, ForeColor = Theme.Muted, MaximumSize = new Size(460, 0), Tag = "keep" });
+        return g;
+    }
+
+    private Control LocalPage()
+    {
+        var g = Page();
+        Full(g, _localOn);
+        Labeled(g, "Bind address", _localBind);
+        Labeled(g, "Port", _localPort);
+        Full(g, Spacer(2));
+        Full(g, _localStatus);
+        Full(g, new Label { Text = "Serves the latest frame with no auth. Add ?path=a.b.c for one value.", AutoSize = true, ForeColor = Theme.Muted, MaximumSize = new Size(460, 0), Tag = "keep" });
 
         _localOn.CheckedChanged += (_, _) => { if (!_loading) { _tray.SetLocal(_localOn.Checked, _localBind.Text.Trim(), ParsePort()); Refresh_(); } };
-        return Card("Local server", g);
+        return g;
+    }
+
+    private Control AboutPage()
+    {
+        var g = Page();
+        Full(g, new Label { Text = "SCTELEMETRY Integrator", AutoSize = true, ForeColor = Theme.Accent, Font = new Font("Segoe UI", 12, FontStyle.Bold), Margin = new Padding(0, 0, 0, 4), Tag = "keep" });
+        Full(g, new Label { Text = "Reads Star Citizen's local gRPC telemetry, decodes it to readable JSON\nand uploads it (and/or serves it locally). Zero dependencies.", AutoSize = true, ForeColor = Theme.Text, MaximumSize = new Size(470, 0) });
+        Full(g, Spacer(8));
+        Full(g, new Label { Text = $"Version {AppCore.Version}", AutoSize = true, ForeColor = Theme.Muted, Tag = "keep" });
+        var link = new LinkLabel { Text = AppCore.Repo, AutoSize = true };
+        link.LinkClicked += (_, _) => OpenUrl(AppCore.Repo);
+        Full(g, link);
+        return g;
     }
 
     private int ParsePort() => int.TryParse(_localPort.Text.Trim(), out var p) && p is > 0 and < 65536 ? p : 8099;
 
-    private Control Footer()
+    // ---- layout helpers ----
+
+    private static Label Dot() => new() { Text = "●", AutoSize = true, Font = new Font("Segoe UI", 11), ForeColor = Theme.Grey, Margin = new Padding(0, 2, 6, 2) };
+
+    private static Control StatusLine(Label dot, Label text)
     {
-        var link = new LinkLabel { Text = AppCore.Repo, AutoSize = true };
-        link.LinkClicked += (_, _) => OpenUrl(AppCore.Repo);
-        var ver = new Label { Text = $"v{AppCore.Version}", AutoSize = true, ForeColor = Theme.Muted };
-        var p = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(2, 12, 0, 0) };
-        p.Controls.Add(ver);
-        p.Controls.Add(new Label { Text = " · ", AutoSize = true, ForeColor = Theme.Muted });
-        p.Controls.Add(link);
-        return p;
-    }
-
-    // ---- helpers ----
-
-    private static Label Dot() => new() { Text = "●", AutoSize = true, Font = new Font("Segoe UI", 11), ForeColor = Theme.Grey, Margin = new Padding(0, 3, 6, 3) };
-
-    private static TableLayoutPanel Grid(int cols) => new()
-    {
-        ColumnCount = cols, AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(2),
-    };
-
-    private static void AddStatus(TableLayoutPanel g, Label dot, Label text, string caption)
-    {
-        text.Text = caption; text.AutoSize = true; text.Margin = new Padding(0, 3, 0, 3);
-        var row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
+        text.AutoSize = true; text.Margin = new Padding(0, 2, 0, 2);
+        var row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 2, 0, 2), WrapContents = false };
         row.Controls.Add(dot); row.Controls.Add(text);
-        g.Controls.Add(row);
-        g.SetColumnSpan(row, 2);
+        return row;
     }
 
-    private static void Row(TableLayoutPanel g, string label, Control field)
+    private static Control Spacer(int h) => new Label { Text = "", AutoSize = false, Height = h, Width = 1, Margin = new Padding(0) };
+
+    private static TableLayoutPanel Page()
     {
-        g.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(0, 6, 10, 6) });
+        var g = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, BackColor = Theme.Panel, Padding = new Padding(16, 14, 16, 14), AutoScroll = false };
+        g.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        g.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        return g;
+    }
+
+    private static void Labeled(TableLayoutPanel g, string label, Control field)
+    {
+        g.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(0, 7, 12, 6), ForeColor = Theme.Text });
+        field.Margin = new Padding(0, 4, 0, 4);
         g.Controls.Add(field);
     }
 
-    private Control Card(string title, Control content)
+    private static void Full(TableLayoutPanel g, Control c)
     {
-        var header = new Label { Text = title.ToUpperInvariant(), AutoSize = true, ForeColor = Theme.Accent, Font = new Font("Segoe UI", 9, FontStyle.Bold), Margin = new Padding(2, 4, 0, 6) };
-        var panel = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, Dock = DockStyle.Top, BackColor = Theme.Panel, Padding = new Padding(12, 10, 12, 12), Margin = new Padding(0, 0, 0, 12) };
-        panel.Controls.Add(header);
-        panel.Controls.Add(content);
-        return panel;
-    }
-
-    private void StyleAccents()
-    {
-        foreach (var b in new[] { _startStop })
-        {
-            b.FlatStyle = FlatStyle.Flat;
-            b.FlatAppearance.BorderColor = Theme.Accent;
-            b.BackColor = Theme.Panel;
-            b.ForeColor = Theme.Accent;
-        }
+        if (c.Margin == new Padding(3)) c.Margin = new Padding(0, 5, 0, 5);  // default -> tidy
+        g.Controls.Add(c);
+        g.SetColumnSpan(c, 2);
     }
 
     private void LoadFrom(AppConfig cfg)
@@ -314,10 +364,10 @@ internal sealed class MainForm : Form
     private void UpdateLocalStatus()
     {
         LocalServer ls = _tray.Local;
-        if (!_tray.Config.LocalServerEnabled) { _localStatus.Text = "off"; _localStatus.ForeColor = Theme.Muted; }
-        else if (ls.Error != null) { _localStatus.Text = "error: " + ls.Error; _localStatus.ForeColor = Theme.Red; }
-        else if (ls.Running) { _localStatus.Text = "serving at " + ls.Prefix.Replace("+", _tray.Config.LocalBind); _localStatus.ForeColor = Theme.Green; }
-        else { _localStatus.Text = "starting…"; _localStatus.ForeColor = Theme.Muted; }
+        if (!_tray.Config.LocalServerEnabled) { _localStatus.Text = "Status: off"; _localStatus.ForeColor = Theme.Muted; }
+        else if (ls.Error != null) { _localStatus.Text = "Status: error — " + ls.Error; _localStatus.ForeColor = Theme.Red; }
+        else if (ls.Running) { _localStatus.Text = "Status: serving at " + ls.Prefix.Replace("+", _tray.Config.LocalBind); _localStatus.ForeColor = Theme.Green; }
+        else { _localStatus.Text = "Status: starting…"; _localStatus.ForeColor = Theme.Muted; }
     }
 
     private static void Set(Label dot, Label text, string caption, bool ok, string okWord, string badWord, bool neutralWhenGameOff = false, bool gameOn = true)
