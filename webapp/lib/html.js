@@ -112,6 +112,7 @@ const STYLE = `
   input[type=text], input[type=number], select {
     background: #04090e; color: var(--head); border: 1px solid var(--line);
     padding: 8px 10px; font: inherit; border-radius: 0;
+    margin-right: 8px; vertical-align: middle;
   }
   input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(21,198,236,0.35); }
 
