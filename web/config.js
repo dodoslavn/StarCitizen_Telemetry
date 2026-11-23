@@ -42,7 +42,7 @@ config.app = {
   name: 'SCTelemetry Web',
   tagline: 'Telemetry collector for Star Citizen',
   version: require('./package.json').version,
-  repo: 'https://github.com/dodoslavn/StarCitizen_Telemetry',
+  repo: 'https://github.com/scpages/telemetry',
 };
 
 config.apiPrefix = '/api/v1';   // versioned API base; legacy /api/* kept as aliases

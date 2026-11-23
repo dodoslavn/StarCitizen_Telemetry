@@ -5,7 +5,7 @@ namespace Integrator;
 /// <summary>Shared bootstrap: locate config, load the schema, prepare a worker.</summary>
 internal static class AppCore
 {
-    public const string Repo = "https://github.com/dodoslavn/StarCitizen_Telemetry";
+    public const string Repo = "https://github.com/scpages/telemetry";
 
     public static string Version =>
         typeof(AppCore).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "0.0.0";
