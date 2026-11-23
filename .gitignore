@@ -3,3 +3,9 @@ obj/
 *.user
 .vs/
 config.ini
+
+# node
+node_modules/
+webapp/.env
+webapp/data/
+receiver/receiver.log

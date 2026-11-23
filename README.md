@@ -12,6 +12,17 @@ patches), and POSTs the result to a URL you configure.
 library, no protobuf library; the schema reader, gRPC call and decoder are all
 hand-rolled.
 
+## Repository
+
+| Folder | What |
+|---|---|
+| `src/ScTelemetry/` | the Windows tray tool (C#, .NET 9) |
+| `tests/` | tests for the tool's decoder/extractor |
+| [`webapp/`](webapp/) | the telemetry **website** — Discord login, client credentials, groups, read API (Node, no deps) |
+| [`receiver/`](receiver/) | a minimal in-memory receiver for quick local end-to-end testing |
+
+The tool uploads to any of them. `webapp/` is the full service; `receiver/` is the throwaway tester.
+
 ## How it works
 
 ```
