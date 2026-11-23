@@ -39,6 +39,56 @@ function about(req, res, ctx) {
   return http.sendHtml(res, 200, layout({ title: 'About', user: ctx.user, active: 'about', body }));
 }
 
+function apiDocs(req, res, ctx) {
+  const b = esc(config.baseUrl);
+  const ep = (method, path, desc, auth, example, sample) => `
+    <div class="card">
+      <div class="ep"><span class="method ${method.toLowerCase()}">${method}</span> <code>${esc(path)}</code></div>
+      <p>${desc}</p>
+      <p class="muted">Auth: ${auth}</p>
+      <pre>${esc(example)}</pre>
+      ${sample ? `<p class="muted">Response:</p><pre>${esc(sample)}</pre>` : ''}
+    </div>`;
+
+  const body = `
+    <h1>API</h1>
+    <p class="muted">All responses are JSON. Base URL <code>${b}</code>.
+      Account tokens come from <a href="/account">My account</a>; group read keys from each group's page.</p>
+
+    <h2>Upload a frame</h2>
+    ${ep('POST', '/api/telemetry',
+      'Store one telemetry frame for the account (this is what the desktop tool calls). The newest frames up to the account history limit are kept.',
+      '<code>Authorization: Bearer &lt;account token&gt;</code>',
+      `curl -X POST ${config.baseUrl}/api/telemetry \\\n  -H "Authorization: Bearer <account token>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"telemetry": { "...": "..." }}'`,
+      '{ "ok": true, "account": "Main PC", "stored": 42 }')}
+
+    <h2>Read one account</h2>
+    ${ep('GET', '/api/telemetry',
+      'The latest frame for the account whose token you send.',
+      '<code>Authorization: Bearer &lt;account token&gt;</code>',
+      `curl ${config.baseUrl}/api/telemetry \\\n  -H "Authorization: Bearer <account token>"`,
+      '{ "account": "Main PC", "updatedAt": "...", "frame": { ... } }')}
+
+    <h2>Read a group — latest</h2>
+    ${ep('GET', '/api/groups/:id/latest',
+      'The newest frame from every account in the group.',
+      '<code>?key=&lt;read key&gt;</code> or <code>Authorization: Bearer &lt;read key&gt;</code>',
+      `curl "${config.baseUrl}/api/groups/<group id>/latest?key=<read key>"`,
+      '{ "group": { "id": "...", "name": "..." }, "accounts": [ { "account": "Main PC", "updatedAt": "...", "frame": { ... } } ] }')}
+
+    <h2>Read a group — history</h2>
+    ${ep('GET', '/api/groups/:id/history',
+      'Full stored history (up to each account history limit) for every account in the group.',
+      '<code>?key=&lt;read key&gt;</code> or <code>Authorization: Bearer &lt;read key&gt;</code>',
+      `curl "${config.baseUrl}/api/groups/<group id>/history?key=<read key>"`,
+      '{ "group": { ... }, "accounts": [ { "account": "Main PC", "count": 100, "frames": [ { "at": "...", "frame": { ... } } ] } ] }')}
+
+    <h2>Errors</h2>
+    <div class="card"><p class="muted"><code>401</code> bad/missing token or key · <code>404</code> unknown group · <code>400</code> invalid JSON body · <code>413</code> body too large.</p></div>`;
+
+  return http.sendHtml(res, 200, layout({ title: 'API', user: ctx.user, active: 'api', body }));
+}
+
 function accountPage(req, res, ctx) {
   const user = requireUser(req, res, ctx);
   if (!user) return;
@@ -269,7 +319,7 @@ async function joinSubmit(req, res, ctx) {
 }
 
 module.exports = {
-  landing, about, accountPage, groupsPage,
+  landing, about, apiDocs, accountPage, groupsPage,
   createAccount, setAccountLimit, rotateAccount, deleteAccount,
   createGroup, groupPage, removeMember, rotateGroupKey, deleteGroup,
   joinPage, joinSubmit,

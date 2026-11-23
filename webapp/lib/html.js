@@ -31,6 +31,7 @@ const STYLE = `
   html, body { height: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
+    min-width: 1000px;            /* keep the desktop layout; phones zoom/scroll instead of wrapping */
     font: 15px/1.6 system-ui, "Segoe UI", sans-serif;
     background-image:
       radial-gradient(1200px 600px at 75% -10%, rgba(21,198,236,0.08), transparent 60%),
@@ -133,6 +134,11 @@ const STYLE = `
     background: rgba(21,198,236,0.12); color: var(--accent); border: 1px solid var(--line); padding: 2px 10px;
   }
   details summary { cursor: pointer; color: var(--accent); }
+  .method { font-family: var(--display); font-weight: 700; letter-spacing: 2px; font-size: 12px; padding: 2px 10px; border: 1px solid var(--line); }
+  .method.get { color: var(--accent); background: rgba(21,198,236,0.1); }
+  .method.post { color: #5fe39b; background: rgba(95,227,155,0.1); border-color: rgba(95,227,155,0.3); }
+  .ep { margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  .ep code { font-size: 14px; }
 
   .center { max-width: 560px; margin: 14vh auto; padding: 0 20px; text-align: center; }
   .center .brand { font-family: var(--logo); font-weight: 700; letter-spacing: 4px; font-size: 34px; color: var(--head); }
@@ -148,6 +154,7 @@ const FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com">'
 const TABS = [
   { key: 'account', href: '/account', label: 'My account' },
   { key: 'groups', href: '/groups', label: 'Groups' },
+  { key: 'api', href: '/api', label: 'API' },
   { key: 'about', href: '/about', label: 'About' },
   { key: 'logout', href: '/logout', label: 'Log out' },
 ];
@@ -186,7 +193,7 @@ function page(title, inner) {
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=1000">
 <title>${esc(title)} · ${esc(config.app.name)}</title>
 ${FONTS}
 <style>${STYLE}</style>

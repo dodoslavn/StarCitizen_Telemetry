@@ -26,6 +26,7 @@ const routes = [
   ['GET', '/account', pages.accountPage],
   ['GET', '/groups', pages.groupsPage],
   ['GET', '/about', pages.about],
+  ['GET', '/api', pages.apiDocs],
   ['POST', '/accounts', pages.createAccount],
   ['POST', '/accounts/:id/limit', pages.setAccountLimit],
   ['POST', '/accounts/:id/rotate', pages.rotateAccount],
