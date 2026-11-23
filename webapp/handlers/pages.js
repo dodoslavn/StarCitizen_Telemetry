@@ -269,9 +269,11 @@ function groupPage(req, res, ctx) {
     <h2>Read key</h2>
     <div class="card">
       <p class="muted">Secret — anyone with it can read this group.</p>
-      <p><code class="tok" title="${esc(g.readKey)}">${esc(g.readKey.slice(0, 10))}…</code>
-         <button class="secondary" type="button" onclick="navigator.clipboard.writeText('${esc(g.readKey)}');this.textContent='Copied'">Copy</button></p>
-      <form class="inline" method="post" action="/groups/${esc(g.id)}/rotate-key"><button class="secondary" type="submit">Rotate read key</button></form>
+      <p>
+        <input id="rkey" type="text" readonly value="${esc(g.readKey)}" style="width:56%">
+        <button class="secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rkey').value);this.textContent='Copied'">Copy</button>
+        <form class="inline" method="post" action="/groups/${esc(g.id)}/rotate-key"><button class="secondary" type="submit">Rotate</button></form>
+      </p>
     </div>` : '';
 
   const ownerDanger = isOwner ? `
