@@ -11,6 +11,11 @@ function requireUser(req, res, ctx) {
   return null;
 }
 
+// Compact UTC timestamp: "2026-11-23 07:20:46Z"
+function fmtTime(iso) {
+  return new Date(iso).toISOString().slice(0, 19).replace('T', ' ') + 'Z';
+}
+
 function landing(req, res, ctx) {
   if (ctx.user) return http.redirect(res, '/account');
   return http.sendHtml(res, 200, layout({
@@ -43,20 +48,25 @@ function accountPage(req, res, ctx) {
 
   const accountRows = accounts.length ? accounts.map((a) => {
     const last = store.latest(a.id);
-    const when = last ? esc(last.at) : '<span class="muted">never</span>';
+    const when = last ? '<span class="nowrap">' + esc(fmtTime(last.at)) + '</span>' : '<span class="muted">never</span>';
     return `<tr>
       <td>${esc(a.name)}</td>
-      <td><code>${esc(a.token)}</code></td>
+      <td>
+        <code class="tok" title="${esc(a.token)}">${esc(a.token.slice(0, 8))}…</code>
+        <button class="secondary" type="button" onclick="navigator.clipboard.writeText('${esc(a.token)}');this.textContent='Copied'">Copy</button>
+      </td>
       <td>
         <form class="inline" method="post" action="/accounts/${esc(a.id)}/limit">
-          <input type="number" name="limit" value="${esc(a.historyLimit)}" min="1" max="${config.maxHistory}" style="width:80px">
+          <input type="number" name="limit" value="${esc(a.historyLimit)}" min="1" max="${config.maxHistory}" style="width:70px">
           <button class="secondary" type="submit">Set</button>
         </form>
       </td>
       <td>${when}</td>
       <td>
-        <form class="inline" method="post" action="/accounts/${esc(a.id)}/rotate"><button class="secondary" type="submit">Rotate token</button></form>
-        <form class="inline" method="post" action="/accounts/${esc(a.id)}/delete" onsubmit="return confirm('Delete this account?')"><button class="danger" type="submit">Delete</button></form>
+        <div class="actions">
+          <form class="inline" method="post" action="/accounts/${esc(a.id)}/rotate"><button class="secondary" type="submit">Rotate</button></form>
+          <form class="inline" method="post" action="/accounts/${esc(a.id)}/delete" onsubmit="return confirm('Delete this account?')"><button class="danger" type="submit">Delete</button></form>
+        </div>
       </td>
     </tr>`;
   }).join('') : `<tr><td colspan="5" class="muted">No accounts yet — create one below.</td></tr>`;
@@ -66,10 +76,10 @@ function accountPage(req, res, ctx) {
     <p class="muted">Each entry below is a credential for the desktop tool. Point the tool at
       <code>${esc(ingestUrl)}</code> and use the token as the Bearer token.</p>
     <div class="card">
-      <table>
+      <div class="table-wrap"><table>
         <tr><th>Name</th><th>Token</th><th>History</th><th>Last upload</th><th></th></tr>
         ${accountRows}
-      </table>
+      </table></div>
     </div>
     <div class="card">
       <form method="post" action="/accounts">
@@ -99,7 +109,7 @@ function groupsPage(req, res, ctx) {
   const body = `
     <h1>Groups</h1>
     <div class="card">
-      <table><tr><th>Name</th><th>Role</th><th>Accounts</th></tr>${groupRows}</table>
+      <div class="table-wrap"><table><tr><th>Name</th><th>Role</th><th>Accounts</th></tr>${groupRows}</table></div>
     </div>
     <div class="card">
       <form method="post" action="/groups">
@@ -164,7 +174,7 @@ function groupPage(req, res, ctx) {
     const owner = store.getUser(a.userId);
     const last = store.latest(a.id);
     const canRemove = isOwner || a.userId === user.id;
-    const summary = last ? `<details><summary>${esc(last.at)}</summary><pre>${esc(JSON.stringify(last.frame, null, 2))}</pre></details>` : '<span class="muted">no data</span>';
+    const summary = last ? `<details><summary>${esc(fmtTime(last.at))}</summary><pre>${esc(JSON.stringify(last.frame, null, 2))}</pre></details>` : '<span class="muted">no data</span>';
     const remove = canRemove ? `<form class="inline" method="post" action="/groups/${esc(g.id)}/remove"><input type="hidden" name="accountId" value="${esc(a.id)}"><button class="danger" type="submit">Remove</button></form>` : '';
     return `<tr><td>${esc(a.name)}</td><td>${esc(owner?.username || '?')}</td><td>${summary}</td><td>${remove}</td></tr>`;
   }).join('') || `<tr><td colspan="4" class="muted">No accounts in this group yet. Share the invite link.</td></tr>`;
@@ -193,7 +203,7 @@ function groupPage(req, res, ctx) {
 
     <h2>Accounts in this group</h2>
     <div class="card">
-      <table><tr><th>Account</th><th>Owner</th><th>Latest</th><th></th></tr>${rows}</table>
+      <div class="table-wrap"><table><tr><th>Account</th><th>Owner</th><th>Latest</th><th></th></tr>${rows}</table></div>
     </div>
     ${ownerBox}
     <p><a href="/groups">← back to groups</a></p>`;
