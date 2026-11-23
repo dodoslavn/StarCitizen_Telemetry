@@ -377,10 +377,6 @@ function apiDocs(req, res, ctx) {
 
   const body = `
     <h1>API docs</h1>
-    <p class="muted">All responses are JSON. The API is versioned under
-      <code>${esc(pre)}</code> (the older <code>/api/…</code> paths still work).
-      A source's bearer token comes from its <a href="/sources">Edit</a> page;
-      a group's read key from its page. Base URL <code>${esc(b)}</code>.</p>
 
     <h2>Server aliveness</h2>
     ${ep('GET', pre + '/ping',
