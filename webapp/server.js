@@ -22,7 +22,10 @@ const routes = [
   ['GET', '/dev-login', auth.devLoginForm],
   ['POST', '/dev-login', auth.devLoginSubmit],
 
-  ['GET', '/dashboard', pages.dashboard],
+  ['GET', '/dashboard', (_req, res) => require('./lib/http').redirect(res, '/account')],
+  ['GET', '/account', pages.accountPage],
+  ['GET', '/groups', pages.groupsPage],
+  ['GET', '/about', pages.about],
   ['POST', '/accounts', pages.createAccount],
   ['POST', '/accounts/:id/limit', pages.setAccountLimit],
   ['POST', '/accounts/:id/rotate', pages.rotateAccount],

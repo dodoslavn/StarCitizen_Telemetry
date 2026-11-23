@@ -12,24 +12,33 @@ function requireUser(req, res, ctx) {
 }
 
 function landing(req, res, ctx) {
-  if (ctx.user) return http.redirect(res, '/dashboard');
+  if (ctx.user) return http.redirect(res, '/account');
   return http.sendHtml(res, 200, layout({
     title: 'Home',
     user: null,
     body: `<div class="card">
-      <h1>Star Citizen Telemetry</h1>
       <p>Collect telemetry from the desktop tool, group accounts together, and read a whole group over one HTTP call.</p>
       <p><a class="btn discord" href="/login">Log in with Discord</a></p>
     </div>`,
   }));
 }
 
-function dashboard(req, res, ctx) {
+function about(req, res, ctx) {
+  const body = `<h1>About</h1>
+    <div class="card">
+      <p><strong>${esc(config.app.name)}</strong> — ${esc(config.app.tagline)}.</p>
+      <p>Version <code>${esc(config.app.version)}</code></p>
+      <p>Source: <a href="${esc(config.app.repo)}" target="_blank" rel="noopener">${esc(config.app.repo)}</a></p>
+      <p class="muted">The desktop tool reads Star Citizen's local gRPC telemetry, decodes it to readable JSON, and uploads it here. Accounts can be bundled into groups and read over one HTTP call.</p>
+    </div>`;
+  return http.sendHtml(res, 200, layout({ title: 'About', user: ctx.user, active: 'about', body }));
+}
+
+function accountPage(req, res, ctx) {
   const user = requireUser(req, res, ctx);
   if (!user) return;
 
   const accounts = store.listAccounts(user.id);
-  const groups = store.groupsForUser(user.id);
   const ingestUrl = config.baseUrl + '/api/telemetry';
 
   const accountRows = accounts.length ? accounts.map((a) => {
@@ -52,22 +61,10 @@ function dashboard(req, res, ctx) {
     </tr>`;
   }).join('') : `<tr><td colspan="5" class="muted">No accounts yet — create one below.</td></tr>`;
 
-  const groupRows = groups.length ? groups.map((g) => {
-    const role = g.ownerId === user.id ? 'owner' : 'member';
-    const count = store.memberAccountIds(g.id).length;
-    return `<tr>
-      <td><a href="/groups/${esc(g.id)}">${esc(g.name)}</a></td>
-      <td><span class="pill">${role}</span></td>
-      <td>${count} account${count === 1 ? '' : 's'}</td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="3" class="muted">No groups yet.</td></tr>`;
-
   const body = `
-    <h1>Dashboard</h1>
-
-    <h2>Telemetry accounts</h2>
-    <p class="muted">Each account is a credential for the desktop tool. Point it at
-      <code>${esc(ingestUrl)}</code> and use the account's token as the Bearer token.</p>
+    <h1>My account</h1>
+    <p class="muted">Each entry below is a credential for the desktop tool. Point the tool at
+      <code>${esc(ingestUrl)}</code> and use the token as the Bearer token.</p>
     <div class="card">
       <table>
         <tr><th>Name</th><th>Token</th><th>History</th><th>Last upload</th><th></th></tr>
@@ -79,9 +76,28 @@ function dashboard(req, res, ctx) {
         <input type="text" name="name" placeholder="account name (e.g. Main PC)" required>
         <button type="submit">Create account</button>
       </form>
-    </div>
+    </div>`;
 
-    <h2>Groups</h2>
+  return http.sendHtml(res, 200, layout({ title: 'My account', user, active: 'account', body }));
+}
+
+function groupsPage(req, res, ctx) {
+  const user = requireUser(req, res, ctx);
+  if (!user) return;
+
+  const groups = store.groupsForUser(user.id);
+  const groupRows = groups.length ? groups.map((g) => {
+    const role = g.ownerId === user.id ? 'owner' : 'member';
+    const count = store.memberAccountIds(g.id).length;
+    return `<tr>
+      <td><a href="/groups/${esc(g.id)}">${esc(g.name)}</a></td>
+      <td><span class="pill">${role}</span></td>
+      <td>${count} account${count === 1 ? '' : 's'}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="3" class="muted">No groups yet — create one below.</td></tr>`;
+
+  const body = `
+    <h1>Groups</h1>
     <div class="card">
       <table><tr><th>Name</th><th>Role</th><th>Accounts</th></tr>${groupRows}</table>
     </div>
@@ -92,7 +108,7 @@ function dashboard(req, res, ctx) {
       </form>
     </div>`;
 
-  return http.sendHtml(res, 200, layout({ title: 'Dashboard', user, body }));
+  return http.sendHtml(res, 200, layout({ title: 'Groups', user, active: 'groups', body }));
 }
 
 // ---- account actions ----
@@ -101,26 +117,26 @@ async function createAccount(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   const { name } = await http.readForm(req);
   store.createAccount(user.id, name);
-  return http.redirect(res, '/dashboard');
+  return http.redirect(res, '/account');
 }
 
 async function setAccountLimit(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   const { limit } = await http.readForm(req);
   store.setHistoryLimit(user.id, ctx.params.id, Number(limit));
-  return http.redirect(res, '/dashboard');
+  return http.redirect(res, '/account');
 }
 
 function rotateAccount(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   store.rotateAccountToken(user.id, ctx.params.id);
-  return http.redirect(res, '/dashboard');
+  return http.redirect(res, '/account');
 }
 
 function deleteAccount(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   store.deleteAccount(user.id, ctx.params.id);
-  return http.redirect(res, '/dashboard');
+  return http.redirect(res, '/account');
 }
 
 // ---- group actions ----
@@ -136,7 +152,7 @@ function groupPage(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   const g = store.getGroup(ctx.params.id);
   if (!g || !store.canViewGroup(user.id, g.id)) {
-    return http.sendHtml(res, 404, layout({ title: 'Not found', user, body: '<div class="card">Group not found.</div>' }));
+    return http.sendHtml(res, 404, layout({ title: 'Not found', user, active: 'groups', body: '<div class="card">Group not found.</div>' }));
   }
   const isOwner = g.ownerId === user.id;
   const inviteUrl = `${config.baseUrl}/join/${g.inviteCode}`;
@@ -180,9 +196,9 @@ function groupPage(req, res, ctx) {
       <table><tr><th>Account</th><th>Owner</th><th>Latest</th><th></th></tr>${rows}</table>
     </div>
     ${ownerBox}
-    <p><a href="/dashboard">← back to dashboard</a></p>`;
+    <p><a href="/groups">← back to groups</a></p>`;
 
-  return http.sendHtml(res, 200, layout({ title: g.name, user, body }));
+  return http.sendHtml(res, 200, layout({ title: g.name, user, active: 'groups', body }));
 }
 
 async function removeMember(req, res, ctx) {
@@ -201,7 +217,7 @@ function rotateGroupKey(req, res, ctx) {
 function deleteGroup(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   store.deleteGroup(user.id, ctx.params.id);
-  return http.redirect(res, '/dashboard');
+  return http.redirect(res, '/groups');
 }
 
 // ---- join via invite ----
@@ -209,7 +225,7 @@ function deleteGroup(req, res, ctx) {
 function joinPage(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   const g = store.getGroupByInvite(ctx.params.code);
-  if (!g) return http.sendHtml(res, 404, layout({ title: 'Invite', user, body: '<div class="card">This invite link is not valid.</div>' }));
+  if (!g) return http.sendHtml(res, 404, layout({ title: 'Invite', user, active: 'groups', body: '<div class="card">This invite link is not valid.</div>' }));
 
   const accounts = store.listAccounts(user.id);
   const inGroup = new Set(store.memberAccountIds(g.id));
@@ -222,13 +238,13 @@ function joinPage(req, res, ctx) {
     </form>`
     : (accounts.length
         ? '<p class="muted">All your accounts are already in this group.</p>'
-        : '<p class="muted">You have no accounts yet. <a href="/dashboard">Create one</a> first.</p>');
+        : '<p class="muted">You have no accounts yet. <a href="/account">Create one</a> first.</p>');
 
   return http.sendHtml(res, 200, layout({
-    title: 'Join ' + g.name, user,
+    title: 'Join ' + g.name, user, active: 'groups',
     body: `<div class="card"><h1>Join “${esc(g.name)}”</h1>
       <p>Pick which of your accounts to add:</p>${form}
-      <p><a href="/dashboard">Cancel</a></p></div>`,
+      <p><a href="/groups">Cancel</a></p></div>`,
   }));
 }
 
@@ -243,7 +259,7 @@ async function joinSubmit(req, res, ctx) {
 }
 
 module.exports = {
-  landing, dashboard,
+  landing, about, accountPage, groupsPage,
   createAccount, setAccountLimit, rotateAccount, deleteAccount,
   createGroup, groupPage, removeMember, rotateGroupKey, deleteGroup,
   joinPage, joinSubmit,

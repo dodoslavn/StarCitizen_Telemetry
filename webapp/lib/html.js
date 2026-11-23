@@ -2,6 +2,8 @@
 
 // Minimal server-side HTML: escaping + a shared page layout. No template engine.
 
+const config = require('../config');
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -14,10 +16,17 @@ const STYLE = `
   body { margin: 0; background: #0e1116; color: #e6edf3; font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
   a { color: #58a6ff; text-decoration: none; }
   a:hover { text-decoration: underline; }
-  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: #161b22; border-bottom: 1px solid #30363d; }
-  header .brand { color: gold; font-weight: 700; }
-  header .spacer { flex: 1; }
-  main { max-width: 960px; margin: 0 auto; padding: 24px 20px; }
+  .app { display: flex; min-height: 100vh; }
+  .side { width: 220px; flex: 0 0 220px; background: #161b22; border-right: 1px solid #30363d; padding: 18px 0; display: flex; flex-direction: column; }
+  .side .brand { padding: 0 18px 4px; color: gold; font-weight: 700; font-size: 18px; }
+  .side .tag { padding: 0 18px 18px; color: #8b949e; font-size: 12px; }
+  .side nav { display: flex; flex-direction: column; }
+  .side nav a { padding: 10px 18px; color: #c9d1d9; border-left: 3px solid transparent; }
+  .side nav a:hover { background: #1c2129; text-decoration: none; }
+  .side nav a.active { background: #1c2129; border-left-color: gold; color: #fff; }
+  .side .foot { margin-top: auto; padding: 12px 18px; color: #8b949e; font-size: 12px; }
+  .content { flex: 1; min-width: 0; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 24px 48px; }
   h1 { font-size: 20px; } h2 { font-size: 17px; margin-top: 32px; }
   .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin: 12px 0; }
   table { width: 100%; border-collapse: collapse; }
@@ -34,26 +43,47 @@ const STYLE = `
   .muted { color: #8b949e; }
   .pill { background: #30363d; border-radius: 999px; padding: 2px 10px; font-size: 12px; }
   .discord { background: #5865F2; }
+  .center { max-width: 560px; margin: 10vh auto; padding: 0 20px; }
 `;
 
-function layout({ title, user, body }) {
-  const nav = user
-    ? `<a href="/dashboard">Dashboard</a>
-       <span class="spacer"></span>
-       <span class="muted">${esc(user.username)}</span>
-       <a href="/logout">Log out</a>`
-    : `<span class="spacer"></span><a href="/login" class="btn discord">Log in with Discord</a>`;
+const TABS = [
+  { key: 'account', href: '/account', label: 'My account' },
+  { key: 'groups', href: '/groups', label: 'Groups' },
+  { key: 'about', href: '/about', label: 'About' },
+  { key: 'logout', href: '/logout', label: 'Log out' },
+];
 
+function sidebar(active) {
+  const links = TABS.map((t) =>
+    `<a href="${t.href}"${t.key === active ? ' class="active"' : ''}>${t.label}</a>`
+  ).join('');
+  return `<aside class="side">
+    <div class="brand">${esc(config.app.name)}</div>
+    <div class="tag">${esc(config.app.tagline)}</div>
+    <nav>${links}</nav>
+    <div class="foot">v${esc(config.app.version)}</div>
+  </aside>`;
+}
+
+// Logged-in layout with the left panel.
+function layout({ title, user, active, body }) {
+  if (!user) return plain({ title, body });
+  return page(title, `<div class="app">${sidebar(active)}<div class="content"><main>${body}</main></div></div>`);
+}
+
+// Simple centered layout for logged-out pages.
+function plain({ title, body }) {
+  return page(title, `<div class="center"><div class="brand" style="color:gold;font-weight:700;font-size:22px">${esc(config.app.name)}</div><p class="muted">${esc(config.app.tagline)}</p>${body}</div>`);
+}
+
+function page(title, inner) {
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)} · SC Telemetry</title>
+<title>${esc(title)} · ${esc(config.app.name)}</title>
 <style>${STYLE}</style>
-</head><body>
-<header><span class="brand">SC Telemetry</span>${nav}</header>
-<main>${body}</main>
-</body></html>`;
+</head><body>${inner}</body></html>`;
 }
 
-module.exports = { esc, layout };
+module.exports = { esc, layout, plain };

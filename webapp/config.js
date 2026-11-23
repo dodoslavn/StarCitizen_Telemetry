@@ -38,6 +38,13 @@ const config = {
   allowDevLogin: process.env.ALLOW_DEV_LOGIN === '1',
 };
 
+config.app = {
+  name: 'SCTelemetry',
+  tagline: 'Telemetry collector for Star Citizen',
+  version: require('./package.json').version,
+  repo: 'https://github.com/dodoslavn/StarCitizen_Telemetry',
+};
+
 config.redirectUri = config.baseUrl + '/auth/discord/callback';
 config.discordConfigured = Boolean(config.discord.clientId && config.discord.clientSecret);
 
