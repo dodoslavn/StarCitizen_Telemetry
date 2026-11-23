@@ -5,12 +5,13 @@ namespace Integrator;
 
 /// <summary>
 /// The tool's settings. Backed by a simple INI file, editable from the Settings
-/// window or by hand. Keys: interval, url, token, url_ssl_verify, source, exe.
+/// window or by hand. Keys: interval, url, auth, token, url_ssl_verify, source, exe,
+/// send_data, local_server, local_bind, local_port.
 /// </summary>
 internal sealed class AppConfig
 {
     public double IntervalSeconds { get; set; } = 1.0;
-    public string Url { get; set; } = "https://sctelemetry.dodoslav.eu/api/v1/telemetry";
+    public string Url { get; set; } = "https://example.com/api/v1/telemetry";
     public bool UseBearer { get; set; } = true;             // authorization: none | bearer
     public string Token { get; set; } = "";                 // bearer token sent on upload
     public bool UrlSslVerify { get; set; } = true;
@@ -20,7 +21,7 @@ internal sealed class AppConfig
     public bool SendData { get; set; } = true;              // upload to the URL on/off
     public bool LocalServerEnabled { get; set; } = false;   // expose latest frame over local HTTP
     public string LocalBind { get; set; } = "127.0.0.1";
-    public int LocalPort { get; set; } = 8099;
+    public int LocalPort { get; set; } = 8080;
 
     /// <summary>The token actually sent (empty when auth is None).</summary>
     public string EffectiveToken => UseBearer ? Token : "";

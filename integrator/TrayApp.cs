@@ -78,7 +78,7 @@ internal sealed class TrayApp : IDisposable
     {
         _cfg.LocalServerEnabled = on;
         _cfg.LocalBind = string.IsNullOrWhiteSpace(bind) ? "127.0.0.1" : bind;
-        _cfg.LocalPort = port is > 0 and < 65536 ? port : 8099;
+        _cfg.LocalPort = port is > 0 and < 65536 ? port : 8080;
         SaveCfg();
         ConfigureLocal();
     }

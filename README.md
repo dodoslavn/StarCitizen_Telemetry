@@ -57,7 +57,7 @@ On first run the Settings window opens with sensible defaults.
 | Key | Meaning | Default |
 |---|---|---|
 | `interval` | How often to pull, in seconds (decimals allowed) | `1` |
-| `url` | HTTP endpoint the JSON is POSTed to | `https://sctelemetry.dodoslav.eu/api/v1/telemetry` |
+| `url` | HTTP endpoint the JSON is POSTed to | `https://example.com/api/v1/telemetry` |
 | `token` | Bearer token sent as `Authorization: Bearer <token>` (empty = none) | *(empty)* |
 | `url_ssl_verify` | Verify the endpoint's TLS certificate | `true` |
 | `source` | The game's gRPC server, `ip:port` | `127.0.0.1:50051` |

@@ -65,9 +65,9 @@ internal sealed class MainForm : Form
         Controls.Add(root);
 
         AddTab("Status", StatusPage());
-        AddTab("Server", ServerPage());
-        AddTab("Game", GamePage());
-        AddTab("Local", LocalPage());
+        AddTab("Destination", DestinationPage());
+        AddTab("Telemetry", TelemetryPage());
+        AddTab("Local server", LocalServerPage());
         AddTab("About", AboutPage());
 
         LoadFrom(cfg);
@@ -97,7 +97,8 @@ internal sealed class MainForm : Form
 
         var b = new Button
         {
-            Text = name, AutoSize = false, Width = 92, Height = 30,
+            Text = name, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(70, 30), Padding = new Padding(10, 0, 10, 0),
             FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 0, 3, 0),
             Font = new Font("Segoe UI", 9f), TabStop = false,
         };
@@ -147,7 +148,7 @@ internal sealed class MainForm : Form
         return g;
     }
 
-    private Control ServerPage()
+    private Control DestinationPage()
     {
         var g = Page();
         _url.Anchor = AnchorStyles.Left | AnchorStyles.Right;
@@ -171,7 +172,7 @@ internal sealed class MainForm : Form
         return g;
     }
 
-    private Control GamePage()
+    private Control TelemetryPage()
     {
         var g = Page();
         Labeled(g, "Game source", _source);
@@ -185,7 +186,7 @@ internal sealed class MainForm : Form
         return g;
     }
 
-    private Control LocalPage()
+    private Control LocalServerPage()
     {
         var g = Page();
         Full(g, _localOn);
@@ -212,7 +213,7 @@ internal sealed class MainForm : Form
         return g;
     }
 
-    private int ParsePort() => int.TryParse(_localPort.Text.Trim(), out var p) && p is > 0 and < 65536 ? p : 8099;
+    private int ParsePort() => int.TryParse(_localPort.Text.Trim(), out var p) && p is > 0 and < 65536 ? p : 8080;
 
     // ---- layout helpers ----
 

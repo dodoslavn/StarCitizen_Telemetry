@@ -38,7 +38,7 @@ valid JSON is accepted on write.
 Copy `.env.example` → `.env` and fill it in (see the file for every key). The essentials:
 
 ```ini
-BASE_URL=https://sctelemetry.dodoslav.eu
+BASE_URL=https://example.com
 SESSION_SECRET=<openssl rand -hex 32>
 DISCORD_CLIENT_ID=...
 DISCORD_CLIENT_SECRET=...
@@ -46,7 +46,7 @@ DISCORD_CLIENT_SECRET=...
 
 ### Discord app (one-time)
 1. https://discord.com/developers/applications → **New Application**.
-2. **OAuth2** → add redirect `https://sctelemetry.dodoslav.eu/auth/discord/callback`.
+2. **OAuth2** → add redirect `https://example.com/auth/discord/callback`.
 3. Copy the **Client ID** and **Client Secret** into `.env`.
    (Scope used is just `identify`.)
 
@@ -66,8 +66,8 @@ For local testing without Discord, set `ALLOW_DEV_LOGIN=1` and visit `/dev-login
 Create an account on the dashboard, then in the tool's Settings:
 
 ```
-url   = https://sctelemetry.dodoslav.eu/api/telemetry
-token = <the account token>
+url   = https://example.com/api/v1/telemetry
+token = <the source token>
 ```
 
 ## Notes
