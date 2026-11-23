@@ -1,33 +1,37 @@
-# SC Telemetry — website
+# SCTelemetry — website
 
-Full telemetry service: **Discord login**, per-user **client credentials**, **groups**
-with invite links, and a **read API** that returns data from every account in a group.
-Pure Node.js — **no dependencies** — with a JSON-file datastore.
+Full telemetry service: **Discord login**, per-source **client credentials**, **groups**
+with invite links, and a read-only **group API**. Pure Node.js — **no dependencies**.
+Config (users, sources, groups) persists to a JSON file; the telemetry **data itself is
+kept in memory only** and is gone on restart.
 
 ## Concepts
 
-- **User** — a person, logged in via Discord.
-- **Account** — a credential for the desktop tool. Has a secret **token** and a
-  **history limit** (default 100). The tool uploads with `Authorization: Bearer <token>`.
-- **Group** — groups accounts together. Anyone can create one; it has an **invite link**
-  (to add accounts) and a secret **read key** (to read its data over HTTP).
+- **Account** — a person, logged in via Discord.
+- **Source** — one running instance of Star Citizen. Has a letters-only name, a secret
+  **bearer token** (read + write), and a **history size** (default 100 frames kept in
+  memory). An account can own many sources.
+- **Group** — bundles sources together behind one **read-only** endpoint (keyed by a
+  secret **read key**). Anyone can create one; sources join via its **invite link**.
+  Ownership can be transferred to another member.
 
 ## Endpoints
 
 ### Web (Discord session)
-`/` landing · `/login` · `/auth/discord/callback` · `/logout` · `/dashboard`
-· `/groups/:id` · `/join/:code` — plus POST actions for creating/rotating/deleting
-accounts and groups.
+`/` · `/login` · `/logout` · `/sources` (+ `/sources/:id/data|edit`) · `/groups`
+(+ `/groups/:id`) · `/join/:code` · `/about` · `/api` docs.
 
 ### API
 | Method | Path | Auth | Returns |
 |---|---|---|---|
-| POST | `/api/telemetry` (alias `/telemetry`) | `Bearer <account token>` | stores a frame |
-| GET | `/api/telemetry` | `Bearer <account token>` | that account's latest frame |
-| GET | `/api/groups/:id/latest` | `?key=` or `Bearer <read key>` | newest frame per account |
-| GET | `/api/groups/:id/history` | `?key=` or `Bearer <read key>` | full history per account |
+| GET | `/api/ping` | none | liveness + dynamic nonce/uptime |
+| POST | `/api/telemetry` (alias `/telemetry`) | `Bearer <source token>` | stores a frame |
+| GET | `/api/telemetry?n=1` | `Bearer <source token>` | the n-th latest frame (creds test) |
+| GET | `/api/groups/:id/latest` | `?key=` or `Bearer <read key>` | `{ sources: { "<acct>_<src>": frame } }` |
+| GET | `/api/groups/:id/history` | `?key=` or `Bearer <read key>` | history per source |
 
-`latest` is the default; `history` returns up to each account's limit.
+Any read call accepts `?path=a.b.c` to return just that value (missing → `-`). Only
+valid JSON is accepted on write.
 
 ## Configure
 

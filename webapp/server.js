@@ -6,7 +6,7 @@ const http = require('node:http');
 const config = require('./config');
 const store = require('./lib/store');
 const session = require('./lib/session');
-const { sendJson } = require('./lib/http');
+const { sendJson, redirect } = require('./lib/http');
 const auth = require('./handlers/auth');
 const pages = require('./handlers/pages');
 const api = require('./handlers/api');
@@ -22,28 +22,36 @@ const routes = [
   ['GET', '/dev-login', auth.devLoginForm],
   ['POST', '/dev-login', auth.devLoginSubmit],
 
-  ['GET', '/dashboard', (_req, res) => require('./lib/http').redirect(res, '/account')],
-  ['GET', '/account', pages.accountPage],
-  ['GET', '/groups', pages.groupsPage],
-  ['GET', '/about', pages.about],
-  ['GET', '/api', pages.apiDocs],
-  ['POST', '/accounts', pages.createAccount],
-  ['POST', '/accounts/:id/limit', pages.setAccountLimit],
-  ['POST', '/accounts/:id/rotate', pages.rotateAccount],
-  ['POST', '/accounts/:id/delete', pages.deleteAccount],
+  // sources (formerly "account")
+  ['GET', '/dashboard', (_req, res) => redirect(res, '/sources')],
+  ['GET', '/account', (_req, res) => redirect(res, '/sources')],
+  ['GET', '/sources', pages.sourcesPage],
+  ['POST', '/sources', pages.createSource],
+  ['GET', '/sources/:id/data', pages.sourceDataPage],
+  ['GET', '/sources/:id/edit', pages.sourceEditPage],
+  ['POST', '/sources/:id/limit', pages.setSourceLimit],
+  ['POST', '/sources/:id/rotate', pages.rotateSource],
+  ['POST', '/sources/:id/delete', pages.deleteSource],
 
+  ['GET', '/groups', pages.groupsPage],
   ['POST', '/groups', pages.createGroup],
   ['GET', '/groups/:id', pages.groupPage],
   ['POST', '/groups/:id/remove', pages.removeMember],
+  ['POST', '/groups/:id/set-owner', pages.setOwner],
   ['POST', '/groups/:id/rotate-key', pages.rotateGroupKey],
   ['POST', '/groups/:id/delete', pages.deleteGroup],
 
   ['GET', '/join/:code', pages.joinPage],
   ['POST', '/join/:code', pages.joinSubmit],
 
+  ['GET', '/about', pages.about],
+  ['GET', '/api', pages.apiDocs],
+
+  // JSON API
+  ['GET', '/api/ping', api.ping],
   ['POST', '/api/telemetry', api.ingest],
-  ['POST', '/telemetry', api.ingest],          // alias for the existing tool
-  ['GET', '/api/telemetry', api.accountLatest],
+  ['POST', '/telemetry', api.ingest],          // alias
+  ['GET', '/api/telemetry', api.sourceRead],
   ['GET', '/api/groups/:id/latest', api.groupLatest],
   ['GET', '/api/groups/:id/history', api.groupHistory],
 ];
@@ -90,6 +98,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(config.port, config.host, () => {
-  console.log(`SC Telemetry web on http://${config.host}:${config.port}  (base ${config.baseUrl})`);
+  console.log(`${config.app.name} web on http://${config.host}:${config.port}  (base ${config.baseUrl})`);
   console.log(`  discord login: ${config.discordConfigured ? 'configured' : 'NOT configured'}${config.allowDevLogin ? ', dev-login ON' : ''}`);
 });

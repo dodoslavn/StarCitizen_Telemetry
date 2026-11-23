@@ -11,195 +11,210 @@ function requireUser(req, res, ctx) {
   return null;
 }
 
-// Compact UTC timestamp: "2026-11-23 07:20:46Z"
-function fmtTime(iso) {
-  return new Date(iso).toISOString().slice(0, 19).replace('T', ' ') + 'Z';
+const plainTime = (iso) => new Date(iso).toISOString().slice(0, 19).replace('T', ' ');
+const fmtTime = (iso) => plainTime(iso) + 'Z';
+
+function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
+// ---------------------------------------------------------------- public
+
 function landing(req, res, ctx) {
-  if (ctx.user) return http.redirect(res, '/account');
+  if (ctx.user) return http.redirect(res, '/sources');
   return http.sendHtml(res, 200, layout({
-    title: 'Home',
-    user: null,
+    title: 'Home', user: null,
     body: `<div class="card">
-      <p>Collect telemetry from the desktop tool, group accounts together, and read a whole group over one HTTP call.</p>
+      <p>Collect telemetry from the desktop tool, group sources together, and read a whole group over one HTTP call.</p>
       <p><a class="btn discord" href="/login">Log in with Discord</a></p>
     </div>`,
   }));
 }
 
 function about(req, res, ctx) {
+  const s = store.stats();
   const body = `<h1>About</h1>
     <div class="card">
       <p><strong>${esc(config.app.name)}</strong> — ${esc(config.app.tagline)}.</p>
-      <p>Version <code>${esc(config.app.version)}</code></p>
-      <p>Source: <a href="${esc(config.app.repo)}" target="_blank" rel="noopener">${esc(config.app.repo)}</a></p>
-      <p class="muted">The desktop tool reads Star Citizen's local gRPC telemetry, decodes it to readable JSON, and uploads it here. Accounts can be bundled into groups and read over one HTTP call.</p>
-    </div>`;
+      <p>Version <code>${esc(config.app.version)}</code> · Source <a href="${esc(config.app.repo)}" target="_blank" rel="noopener">${esc(config.app.repo)}</a></p>
+    </div>
+    <h2>Live stats</h2>
+    <div class="card"><table>
+      <tr><th>Accounts</th><td>${s.users}</td></tr>
+      <tr><th>Sources</th><td>${s.sources}</td></tr>
+      <tr><th>Groups</th><td>${s.groups}</td></tr>
+      <tr><th>Frames in memory</th><td>${s.frames}</td></tr>
+      <tr><th>Memory used by data</th><td>${fmtBytes(s.dataBytes)}</td></tr>
+      <tr><th>Submits total</th><td>${s.totalSubmits}</td></tr>
+      <tr><th>Submits · last 5s</th><td>${s.submits5s}</td></tr>
+      <tr><th>Submits · last 1m</th><td>${s.submits1m}</td></tr>
+      <tr><th>Bad-credential submits · last 1m</th><td>${s.badCreds1m}</td></tr>
+      <tr><th>Uptime</th><td>${s.uptimeSec}s</td></tr>
+    </table></div>`;
   return http.sendHtml(res, 200, layout({ title: 'About', user: ctx.user, active: 'about', body }));
 }
 
-function apiDocs(req, res, ctx) {
-  const b = esc(config.baseUrl);
-  const ep = (method, path, desc, auth, example, sample) => `
-    <div class="card">
-      <div class="ep"><span class="method ${method.toLowerCase()}">${method}</span> <code>${esc(path)}</code></div>
-      <p>${desc}</p>
-      <p class="muted">Auth: ${auth}</p>
-      <pre>${esc(example)}</pre>
-      ${sample ? `<p class="muted">Response:</p><pre>${esc(sample)}</pre>` : ''}
-    </div>`;
+// ---------------------------------------------------------------- sources
 
-  const body = `
-    <h1>API</h1>
-    <p class="muted">All responses are JSON. Base URL <code>${b}</code>.
-      Account tokens come from <a href="/account">My account</a>; group read keys from each group's page.</p>
+function sourcesPage(req, res, ctx) {
+  const user = requireUser(req, res, ctx); if (!user) return;
+  const err = ctx.query.err === 'name'
+    ? '<div class="card" style="border-top-color:var(--danger)"><p style="color:var(--danger)">Source name must be letters only (a–z, A–Z) — no spaces, numbers or dashes.</p></div>'
+    : '';
 
-    <h2>Upload a frame</h2>
-    ${ep('POST', '/api/telemetry',
-      'Store one telemetry frame for the account (this is what the desktop tool calls). The newest frames up to the account history limit are kept.',
-      '<code>Authorization: Bearer &lt;account token&gt;</code>',
-      `curl -X POST ${config.baseUrl}/api/telemetry \\\n  -H "Authorization: Bearer <account token>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"telemetry": { "...": "..." }}'`,
-      '{ "ok": true, "account": "Main PC", "stored": 42 }')}
-
-    <h2>Read one account</h2>
-    ${ep('GET', '/api/telemetry',
-      'The latest frame for the account whose token you send.',
-      '<code>Authorization: Bearer &lt;account token&gt;</code>',
-      `curl ${config.baseUrl}/api/telemetry \\\n  -H "Authorization: Bearer <account token>"`,
-      '{ "account": "Main PC", "updatedAt": "...", "frame": { ... } }')}
-
-    <h2>Read a group — latest</h2>
-    ${ep('GET', '/api/groups/:id/latest',
-      'The newest frame from every account in the group.',
-      '<code>?key=&lt;read key&gt;</code> or <code>Authorization: Bearer &lt;read key&gt;</code>',
-      `curl "${config.baseUrl}/api/groups/<group id>/latest?key=<read key>"`,
-      '{ "group": { "id": "...", "name": "..." }, "accounts": [ { "account": "Main PC", "updatedAt": "...", "frame": { ... } } ] }')}
-
-    <h2>Read a group — history</h2>
-    ${ep('GET', '/api/groups/:id/history',
-      'Full stored history (up to each account history limit) for every account in the group.',
-      '<code>?key=&lt;read key&gt;</code> or <code>Authorization: Bearer &lt;read key&gt;</code>',
-      `curl "${config.baseUrl}/api/groups/<group id>/history?key=<read key>"`,
-      '{ "group": { ... }, "accounts": [ { "account": "Main PC", "count": 100, "frames": [ { "at": "...", "frame": { ... } } ] } ] }')}
-
-    <h2>Errors</h2>
-    <div class="card"><p class="muted"><code>401</code> bad/missing token or key · <code>404</code> unknown group · <code>400</code> invalid JSON body · <code>413</code> body too large.</p></div>`;
-
-  return http.sendHtml(res, 200, layout({ title: 'API', user: ctx.user, active: 'api', body }));
-}
-
-function accountPage(req, res, ctx) {
-  const user = requireUser(req, res, ctx);
-  if (!user) return;
-
-  const accounts = store.listAccounts(user.id);
-  const ingestUrl = config.baseUrl + '/api/telemetry';
-
-  const accountRows = accounts.length ? accounts.map((a) => {
-    const last = store.latest(a.id);
-    const when = last ? '<span class="nowrap">' + esc(fmtTime(last.at)) + '</span>' : '<span class="muted">never</span>';
+  const rows = store.listSources(user.id).map((s) => {
+    const last = store.latest(s.id);
+    const when = last ? `<span class="nowrap">${esc(plainTime(last.at))}</span>` : '<span class="muted">never</span>';
     return `<tr>
-      <td>${esc(a.name)}</td>
-      <td>
-        <code class="tok" title="${esc(a.token)}">${esc(a.token.slice(0, 8))}…</code>
-        <button class="secondary" type="button" onclick="navigator.clipboard.writeText('${esc(a.token)}');this.textContent='Copied'">Copy</button>
-      </td>
-      <td>
-        <form class="inline" method="post" action="/accounts/${esc(a.id)}/limit">
-          <input type="number" name="limit" value="${esc(a.historyLimit)}" min="1" max="${config.maxHistory}" style="width:70px">
-          <button class="secondary" type="submit">Set</button>
-        </form>
-      </td>
+      <td>${esc(s.name)}</td>
+      <td>${s.historyLimit}</td>
       <td>${when}</td>
-      <td>
-        <div class="actions">
-          <form class="inline" method="post" action="/accounts/${esc(a.id)}/rotate"><button class="secondary" type="submit">Rotate</button></form>
-          <form class="inline" method="post" action="/accounts/${esc(a.id)}/delete" onsubmit="return confirm('Delete this account?')"><button class="danger" type="submit">Delete</button></form>
-        </div>
-      </td>
+      <td><div class="actions">
+        <a class="btn secondary" href="/sources/${esc(s.id)}/data">Data</a>
+        <a class="btn secondary" href="/sources/${esc(s.id)}/edit">Edit</a>
+      </div></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="5" class="muted">No accounts yet — create one below.</td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="muted">No sources yet — create one above.</td></tr>`;
 
   const body = `
-    <h1>My account</h1>
-    <p class="muted">Each entry below is a credential for the desktop tool. Point the tool at
-      <code>${esc(ingestUrl)}</code> and use the token as the Bearer token.</p>
+    <h1>Sources</h1>
+    <p class="muted">Management of sources owned by this account — each source represents one running instance of the Star Citizen game.</p>
+    ${err}
     <div class="card">
-      <div class="table-wrap"><table>
-        <tr><th>Name</th><th>Token</th><th>History</th><th>Last upload</th><th></th></tr>
-        ${accountRows}
-      </table></div>
-    </div>
-    <div class="card">
-      <form method="post" action="/accounts">
-        <input type="text" name="name" placeholder="account name (e.g. Main PC)" required>
-        <button type="submit">Create account</button>
+      <form method="post" action="/sources">
+        <input type="text" name="name" placeholder="source name (letters only, e.g. MainRig)" required>
+        <button type="submit">Create source</button>
       </form>
-    </div>`;
+    </div>
+    <div class="card"><div class="table-wrap"><table>
+      <tr><th>Name</th><th>History size</th><th>Last update (UTC)</th><th></th></tr>
+      ${rows}
+    </table></div></div>`;
 
-  return http.sendHtml(res, 200, layout({ title: 'My account', user, active: 'account', body }));
+  return http.sendHtml(res, 200, layout({ title: 'Sources', user, active: 'sources', body }));
 }
+
+async function createSource(req, res, ctx) {
+  const user = requireUser(req, res, ctx); if (!user) return;
+  const { name } = await http.readForm(req);
+  try { store.createSource(user.id, (name || '').trim()); }
+  catch { return http.redirect(res, '/sources?err=name'); }
+  return http.redirect(res, '/sources');
+}
+
+function sourceDataPage(req, res, ctx) {
+  const user = requireUser(req, res, ctx); if (!user) return;
+  const src = store.ownedSource(user.id, ctx.params.id);
+  if (!src) return http.sendHtml(res, 404, layout({ title: 'Not found', user, active: 'sources', body: '<div class="card">Source not found.</div>' }));
+
+  const available = store.history(src.id).length;
+  const n = Math.min(Math.max(1, parseInt(ctx.query.n, 10) || 1), Math.max(1, available));
+  const rec = store.nthLatest(src.id, n);
+
+  if (ctx.query.raw !== undefined) return http.sendJson(res, 200, rec?.frame ?? null);
+
+  const options = [];
+  for (let i = 1; i <= available; i++) options.push(`<option value="${i}"${i === n ? ' selected' : ''}>${i}${i === 1 ? ' (latest)' : ''}</option>`);
+  const picker = available ? `
+    <form method="get" action="/sources/${esc(src.id)}/data" class="inline">
+      <label class="muted">Show</label>
+      <select name="n" onchange="this.form.submit()">${options.join('')}</select>
+      <label class="muted">of ${available} latest</label>
+    </form>` : '<span class="muted">no data received yet</span>';
+
+  const pretty = rec ? esc(JSON.stringify(rec.frame, null, 2)) : '(no data)';
+
+  const body = `
+    <h1>${esc(src.name)} — data</h1>
+    <div class="card">
+      <p class="muted">Source memory: <code>${fmtBytes(store.sourceBytes(src.id))}</code> across ${available} frame${available === 1 ? '' : 's'}
+         · last message: <code>${fmtBytes(store.lastMsgBytes(src.id))}</code></p>
+      <p>${picker} ${rec ? `· <a href="/sources/${esc(src.id)}/data?n=${n}&raw=1" target="_blank">view raw JSON</a>` : ''}</p>
+      ${rec ? `<p class="muted nowrap">received ${esc(fmtTime(rec.at))}</p>` : ''}
+    </div>
+    <div class="card"><pre>${pretty}</pre></div>
+    <p><a href="/sources">← back to sources</a></p>`;
+  return http.sendHtml(res, 200, layout({ title: src.name + ' data', user, active: 'sources', body }));
+}
+
+function sourceEditPage(req, res, ctx) {
+  const user = requireUser(req, res, ctx); if (!user) return;
+  const src = store.ownedSource(user.id, ctx.params.id);
+  if (!src) return http.sendHtml(res, 404, layout({ title: 'Not found', user, active: 'sources', body: '<div class="card">Source not found.</div>' }));
+
+  const body = `
+    <h1>${esc(src.name)} — settings</h1>
+    <h2>Bearer token</h2>
+    <div class="card">
+      <p class="muted">The desktop tool uses this to read and write this source.</p>
+      <p><code class="tok" title="${esc(src.token)}">${esc(src.token.slice(0, 10))}…</code>
+         <button class="secondary" type="button" onclick="navigator.clipboard.writeText('${esc(src.token)}');this.textContent='Copied'">Copy</button></p>
+      <form class="inline" method="post" action="/sources/${esc(src.id)}/rotate"><button class="secondary" type="submit">Rotate token</button></form>
+    </div>
+    <h2>History size</h2>
+    <div class="card">
+      <form method="post" action="/sources/${esc(src.id)}/limit">
+        <input type="number" name="limit" value="${src.historyLimit}" min="1" max="${config.maxHistory}" style="width:90px">
+        <button type="submit">Save</button>
+        <span class="muted">frames kept in memory (max ${config.maxHistory})</span>
+      </form>
+    </div>
+    <h2>Danger zone</h2>
+    <div class="card">
+      <form method="post" action="/sources/${esc(src.id)}/delete" onsubmit="return confirm('Delete this source and its data?')"><button class="danger" type="submit">Delete source</button></form>
+    </div>
+    <p><a href="/sources">← back to sources</a></p>`;
+  return http.sendHtml(res, 200, layout({ title: src.name + ' settings', user, active: 'sources', body }));
+}
+
+async function setSourceLimit(req, res, ctx) {
+  const user = requireUser(req, res, ctx); if (!user) return;
+  const { limit } = await http.readForm(req);
+  store.setHistoryLimit(user.id, ctx.params.id, Number(limit));
+  return http.redirect(res, '/sources/' + ctx.params.id + '/edit');
+}
+
+function rotateSource(req, res, ctx) {
+  const user = requireUser(req, res, ctx); if (!user) return;
+  store.rotateSourceToken(user.id, ctx.params.id);
+  return http.redirect(res, '/sources/' + ctx.params.id + '/edit');
+}
+
+function deleteSource(req, res, ctx) {
+  const user = requireUser(req, res, ctx); if (!user) return;
+  store.deleteSource(user.id, ctx.params.id);
+  return http.redirect(res, '/sources');
+}
+
+// ---------------------------------------------------------------- groups
 
 function groupsPage(req, res, ctx) {
-  const user = requireUser(req, res, ctx);
-  if (!user) return;
-
-  const groups = store.groupsForUser(user.id);
-  const groupRows = groups.length ? groups.map((g) => {
-    const role = g.ownerId === user.id ? 'owner' : 'member';
-    const count = store.memberAccountIds(g.id).length;
-    return `<tr>
+  const user = requireUser(req, res, ctx); if (!user) return;
+  const rows = store.groupsForUser(user.id).map((g) => `
+    <tr>
       <td><a href="/groups/${esc(g.id)}">${esc(g.name)}</a></td>
-      <td><span class="pill">${role}</span></td>
-      <td>${count} account${count === 1 ? '' : 's'}</td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="3" class="muted">No groups yet — create one below.</td></tr>`;
+      <td>${store.groupSourceCount(g.id)}</td>
+      <td>${store.groupAccountCount(g.id)}</td>
+      <td><a class="btn secondary" href="/groups/${esc(g.id)}">Manage</a></td>
+    </tr>`).join('') || `<tr><td colspan="4" class="muted">No groups yet — create one above.</td></tr>`;
 
   const body = `
     <h1>Groups</h1>
-    <div class="card">
-      <div class="table-wrap"><table><tr><th>Name</th><th>Role</th><th>Accounts</th></tr>${groupRows}</table></div>
-    </div>
+    <p class="muted">Groups of data from individual sources, exposed through one read-only endpoint.</p>
     <div class="card">
       <form method="post" action="/groups">
         <input type="text" name="name" placeholder="group name" required>
         <button type="submit">Create group</button>
       </form>
-    </div>`;
-
+    </div>
+    <div class="card"><div class="table-wrap"><table>
+      <tr><th>Name</th><th>Sources</th><th>Accounts</th><th></th></tr>
+      ${rows}
+    </table></div></div>`;
   return http.sendHtml(res, 200, layout({ title: 'Groups', user, active: 'groups', body }));
 }
-
-// ---- account actions ----
-
-async function createAccount(req, res, ctx) {
-  const user = requireUser(req, res, ctx); if (!user) return;
-  const { name } = await http.readForm(req);
-  store.createAccount(user.id, name);
-  return http.redirect(res, '/account');
-}
-
-async function setAccountLimit(req, res, ctx) {
-  const user = requireUser(req, res, ctx); if (!user) return;
-  const { limit } = await http.readForm(req);
-  store.setHistoryLimit(user.id, ctx.params.id, Number(limit));
-  return http.redirect(res, '/account');
-}
-
-function rotateAccount(req, res, ctx) {
-  const user = requireUser(req, res, ctx); if (!user) return;
-  store.rotateAccountToken(user.id, ctx.params.id);
-  return http.redirect(res, '/account');
-}
-
-function deleteAccount(req, res, ctx) {
-  const user = requireUser(req, res, ctx); if (!user) return;
-  store.deleteAccount(user.id, ctx.params.id);
-  return http.redirect(res, '/account');
-}
-
-// ---- group actions ----
 
 async function createGroup(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
@@ -217,54 +232,81 @@ function groupPage(req, res, ctx) {
   const isOwner = g.ownerId === user.id;
   const inviteUrl = `${config.baseUrl}/join/${g.inviteCode}`;
   const latestUrl = `${config.baseUrl}/api/groups/${g.id}/latest?key=${g.readKey}`;
-  const historyUrl = `${config.baseUrl}/api/groups/${g.id}/history?key=${g.readKey}`;
-  const myAccountIds = new Set(store.listAccounts(user.id).map((a) => a.id));
 
-  const rows = store.memberAccounts(g.id).map((a) => {
-    const owner = store.getUser(a.userId);
-    const last = store.latest(a.id);
-    const canRemove = isOwner || a.userId === user.id;
-    const summary = last ? `<details><summary>${esc(fmtTime(last.at))}</summary><pre>${esc(JSON.stringify(last.frame, null, 2))}</pre></details>` : '<span class="muted">no data</span>';
-    const remove = canRemove ? `<form class="inline" method="post" action="/groups/${esc(g.id)}/remove"><input type="hidden" name="accountId" value="${esc(a.id)}"><button class="danger" type="submit">Remove</button></form>` : '';
-    return `<tr><td>${esc(a.name)}</td><td>${esc(owner?.username || '?')}</td><td>${summary}</td><td>${remove}</td></tr>`;
-  }).join('') || `<tr><td colspan="4" class="muted">No accounts in this group yet. Share the invite link.</td></tr>`;
+  const accountRows = store.memberUserIds(g.id).map((uid) => {
+    const u = store.getUser(uid);
+    const owner = uid === g.ownerId;
+    const make = (isOwner && !owner)
+      ? `<form class="inline" method="post" action="/groups/${esc(g.id)}/set-owner"><input type="hidden" name="userId" value="${esc(uid)}"><button class="secondary" type="submit">Make owner</button></form>`
+      : '';
+    return `<tr><td>${esc(u?.username || '?')}</td><td>${owner ? '<span class="pill">owner</span>' : '<span class="muted">member</span>'}</td><td>${make}</td></tr>`;
+  }).join('') || `<tr><td colspan="3" class="muted">No accounts yet.</td></tr>`;
 
-  const ownerBox = isOwner ? `
-    <h2>Read API (keep the key secret)</h2>
+  const sourceRows = store.memberSources(g.id).map((s) => {
+    const owner = store.getUser(s.userId);
+    const last = store.latest(s.id);
+    const canRemove = isOwner || s.userId === user.id;
+    const latestCell = last ? `<details><summary>${esc(fmtTime(last.at))}</summary><pre>${esc(JSON.stringify(last.frame, null, 2))}</pre></details>` : '<span class="muted">no data</span>';
+    const remove = canRemove ? `<form class="inline" method="post" action="/groups/${esc(g.id)}/remove"><input type="hidden" name="sourceId" value="${esc(s.id)}"><button class="danger" type="submit">Remove</button></form>` : '';
+    return `<tr><td>${esc(store.groupSourceKey(s))}</td><td>${esc(owner?.username || '?')}</td><td>${latestCell}</td><td>${remove}</td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="muted">No sources yet — share the invite link.</td></tr>`;
+
+  const endpointBox = `
+    <h2>Read endpoint</h2>
     <div class="card">
-      <p>Latest from every account:</p>
-      <pre>curl "${esc(latestUrl)}"</pre>
-      <p>Full history:</p>
-      <pre>curl "${esc(historyUrl)}"</pre>
-      <p class="muted">Or send header <code>Authorization: Bearer ${esc(g.readKey)}</code>.</p>
+      <p class="muted">Read-only — every source's latest data in one call (JSON).</p>
+      <p>
+        <input id="gurl" type="text" readonly value="${esc(latestUrl)}" style="width:60%">
+        <button class="secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('gurl').value);this.textContent='Copied'">Copy</button>
+        <a class="btn secondary" href="${esc(latestUrl)}" target="_blank">Open</a>
+      </p>
+      <p class="muted">Add a <code>&amp;path=</code> to pull just part of it — see <a href="/api">API</a>.</p>
+    </div>`;
+
+  const ownerApi = isOwner ? `
+    <h2>Read key</h2>
+    <div class="card">
+      <p class="muted">Secret — anyone with it can read this group.</p>
+      <p><code class="tok" title="${esc(g.readKey)}">${esc(g.readKey.slice(0, 10))}…</code>
+         <button class="secondary" type="button" onclick="navigator.clipboard.writeText('${esc(g.readKey)}');this.textContent='Copied'">Copy</button></p>
       <form class="inline" method="post" action="/groups/${esc(g.id)}/rotate-key"><button class="secondary" type="submit">Rotate read key</button></form>
+    </div>` : '';
+
+  const ownerDanger = isOwner ? `
+    <h2>Danger zone</h2>
+    <div class="card">
       <form class="inline" method="post" action="/groups/${esc(g.id)}/delete" onsubmit="return confirm('Delete this group?')"><button class="danger" type="submit">Delete group</button></form>
     </div>` : '';
 
   const body = `
     <h1>${esc(g.name)}</h1>
-    <p>${isOwner ? '<span class="pill">owner</span>' : '<span class="pill">member</span>'}</p>
-
     <h2>Invite</h2>
     <div class="card">
-      <p>Anyone with this link can add one of their accounts to the group:</p>
+      <p class="muted">Anyone with this link can add one of their sources to the group:</p>
       <pre>${esc(inviteUrl)}</pre>
     </div>
-
-    <h2>Accounts in this group</h2>
-    <div class="card">
-      <div class="table-wrap"><table><tr><th>Account</th><th>Owner</th><th>Latest</th><th></th></tr>${rows}</table></div>
-    </div>
-    ${ownerBox}
+    <h2>Accounts</h2>
+    <div class="card"><div class="table-wrap"><table><tr><th>Account</th><th>Role</th><th></th></tr>${accountRows}</table></div></div>
+    <h2>Sources</h2>
+    <div class="card"><div class="table-wrap"><table><tr><th>Source id</th><th>Account</th><th>Latest</th><th></th></tr>${sourceRows}</table></div></div>
+    ${endpointBox}
+    ${ownerApi}
+    ${ownerDanger}
     <p><a href="/groups">← back to groups</a></p>`;
-
   return http.sendHtml(res, 200, layout({ title: g.name, user, active: 'groups', body }));
 }
 
 async function removeMember(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
-  const { accountId } = await http.readForm(req);
-  store.removeAccountFromGroup(user.id, ctx.params.id, accountId);
+  const { sourceId } = await http.readForm(req);
+  store.removeSourceFromGroup(user.id, ctx.params.id, sourceId);
+  return http.redirect(res, '/groups/' + ctx.params.id);
+}
+
+async function setOwner(req, res, ctx) {
+  const user = requireUser(req, res, ctx); if (!user) return;
+  const { userId } = await http.readForm(req);
+  store.setGroupOwner(user.id, ctx.params.id, userId);
   return http.redirect(res, '/groups/' + ctx.params.id);
 }
 
@@ -280,30 +322,28 @@ function deleteGroup(req, res, ctx) {
   return http.redirect(res, '/groups');
 }
 
-// ---- join via invite ----
+// ---------------------------------------------------------------- join
 
 function joinPage(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   const g = store.getGroupByInvite(ctx.params.code);
   if (!g) return http.sendHtml(res, 404, layout({ title: 'Invite', user, active: 'groups', body: '<div class="card">This invite link is not valid.</div>' }));
 
-  const accounts = store.listAccounts(user.id);
-  const inGroup = new Set(store.memberAccountIds(g.id));
-  const options = accounts.filter((a) => !inGroup.has(a.id));
-
+  const inGroup = new Set(store.memberSourceIds(g.id));
+  const all = store.listSources(user.id);
+  const options = all.filter((s) => !inGroup.has(s.id));
   const form = options.length ? `
     <form method="post" action="/join/${esc(ctx.params.code)}">
-      <select name="accountId">${options.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('')}</select>
+      <select name="sourceId">${options.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select>
       <button type="submit">Add to ${esc(g.name)}</button>
     </form>`
-    : (accounts.length
-        ? '<p class="muted">All your accounts are already in this group.</p>'
-        : '<p class="muted">You have no accounts yet. <a href="/account">Create one</a> first.</p>');
+    : (all.length
+        ? '<p class="muted">All your sources are already in this group.</p>'
+        : '<p class="muted">You have no sources yet. <a href="/sources">Create one</a> first.</p>');
 
   return http.sendHtml(res, 200, layout({
     title: 'Join ' + g.name, user, active: 'groups',
-    body: `<div class="card"><h1>Join “${esc(g.name)}”</h1>
-      <p>Pick which of your accounts to add:</p>${form}
+    body: `<div class="card"><h1>Join “${esc(g.name)}”</h1><p>Pick which of your sources to add:</p>${form}
       <p><a href="/groups">Cancel</a></p></div>`,
   }));
 }
@@ -312,15 +352,86 @@ async function joinSubmit(req, res, ctx) {
   const user = requireUser(req, res, ctx); if (!user) return;
   const g = store.getGroupByInvite(ctx.params.code);
   if (!g) return http.sendHtml(res, 404, 'invalid invite');
-  const { accountId } = await http.readForm(req);
-  const acc = store.ownedAccount(user.id, accountId);   // only your own account
-  if (acc) store.addAccountToGroup(g.id, acc.id);
+  const { sourceId } = await http.readForm(req);
+  const src = store.ownedSource(user.id, sourceId);
+  if (src) store.addSourceToGroup(g.id, src.id);
   return http.redirect(res, '/groups/' + g.id);
 }
 
+// ---------------------------------------------------------------- api docs
+
+function apiDocs(req, res, ctx) {
+  const b = config.baseUrl;
+  const ep = (method, path, desc, auth, example, sample) => `
+    <div class="card">
+      <div class="ep"><span class="method ${method.toLowerCase()}">${method}</span> <code>${esc(path)}</code></div>
+      <p>${desc}</p>
+      <p class="muted">Auth: ${auth}</p>
+      <pre>${esc(example)}</pre>
+      ${sample ? `<p class="muted">Response:</p><pre>${esc(sample)}</pre>` : ''}</div>`;
+
+  const body = `
+    <h1>API</h1>
+    <p class="muted">All responses are JSON. Base URL <code>${esc(b)}</code>. A source's bearer token comes from its
+      <a href="/sources">Edit</a> page; a group's read key from its page.</p>
+
+    <h2>Is it up? / are my credentials valid?</h2>
+    ${ep('GET', '/api/ping',
+      'Liveness check with a dynamic response (time + nonce), so a client can prove it reached this app.',
+      'none',
+      `curl ${b}/api/ping`,
+      '{ "app": "SCTelemetry", "ok": true, "time": "...", "uptimeSec": 1234, "nonce": "a1b2c3d4" }')}
+    ${ep('GET', '/api/telemetry',
+      'Returns the source for a valid token — also the simplest credential test.',
+      '<code>Authorization: Bearer &lt;source token&gt;</code>',
+      `curl ${b}/api/telemetry -H "Authorization: Bearer <source token>"`,
+      '{ "ok": true, "source": "MainRig", "n": 1, "available": 100, "updatedAt": "...", "frame": { ... } }')}
+
+    <h2>Write to a source</h2>
+    ${ep('POST', '/api/telemetry',
+      'Store one frame. This is what the desktop tool calls. Only valid JSON is accepted.',
+      '<code>Authorization: Bearer &lt;source token&gt;</code>',
+      `curl -X POST ${b}/api/telemetry \\\n  -H "Authorization: Bearer <source token>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"telemetry": { "...": "..." }}'`,
+      '{ "ok": true, "source": "MainRig", "stored": 42 }')}
+
+    <h2>Read a source</h2>
+    ${ep('GET', '/api/telemetry?n=1',
+      'The n-th latest frame (n=1 newest, up to the source history size).',
+      '<code>Authorization: Bearer &lt;source token&gt;</code>',
+      `curl "${b}/api/telemetry?n=2" -H "Authorization: Bearer <source token>"`,
+      '{ "ok": true, "source": "MainRig", "n": 2, "available": 100, "updatedAt": "...", "frame": { ... } }')}
+
+    <h2>Read a group (read-only)</h2>
+    ${ep('GET', '/api/groups/:id/latest',
+      'Newest frame from every source, keyed by &lt;account&gt;_&lt;source&gt;.',
+      '<code>?key=&lt;read key&gt;</code> or <code>Authorization: Bearer &lt;read key&gt;</code>',
+      `curl "${b}/api/groups/<id>/latest?key=<read key>"`,
+      '{ "group": { "id": "...", "name": "Squad" }, "sources": { "Pilot_MainRig": { ... }, "Wingman_Rig": { ... } } }')}
+    ${ep('GET', '/api/groups/:id/history',
+      'Full in-memory history per source.',
+      '<code>?key=&lt;read key&gt;</code> or bearer',
+      `curl "${b}/api/groups/<id>/history?key=<read key>"`,
+      '{ "group": { ... }, "sources": { "Pilot_MainRig": { "count": 100, "frames": [ ... ] } } }')}
+
+    <h2>Pick one value — ?path=</h2>
+    <div class="card">
+      <p>Add <code>path</code> (a dotted JSON path) to any read call to get just that value. Missing → <code>-</code>.</p>
+      <pre>curl "${esc(b)}/api/telemetry?path=telemetry.actor.state.uec_balance" \\\n  -H "Authorization: Bearer <source token>"
+# -> 15001986
+
+curl "${esc(b)}/api/groups/<id>/latest?key=<read key>&path=telemetry.vehicle.state.class_name"
+# -> { "group": {...}, "sources": { "Pilot_MainRig": "ANVL Asgard", "Wingman_Rig": "-" } }</pre>
+    </div>
+
+    <h2>Errors</h2>
+    <div class="card"><p class="muted"><code>401</code> bad/missing token or key · <code>404</code> unknown group · <code>400</code> invalid JSON body · <code>413</code> body too large.</p></div>`;
+
+  return http.sendHtml(res, 200, layout({ title: 'API', user: ctx.user, active: 'api', body }));
+}
+
 module.exports = {
-  landing, about, apiDocs, accountPage, groupsPage,
-  createAccount, setAccountLimit, rotateAccount, deleteAccount,
-  createGroup, groupPage, removeMember, rotateGroupKey, deleteGroup,
+  landing, about, apiDocs,
+  sourcesPage, createSource, sourceDataPage, sourceEditPage, setSourceLimit, rotateSource, deleteSource,
+  groupsPage, createGroup, groupPage, removeMember, setOwner, rotateGroupKey, deleteGroup,
   joinPage, joinSubmit,
 };

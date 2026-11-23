@@ -152,7 +152,7 @@ const FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com">'
   + '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">';
 
 const TABS = [
-  { key: 'account', href: '/account', label: 'My account' },
+  { key: 'sources', href: '/sources', label: 'Sources' },
   { key: 'groups', href: '/groups', label: 'Groups' },
   { key: 'api', href: '/api', label: 'API' },
   { key: 'about', href: '/about', label: 'About' },
