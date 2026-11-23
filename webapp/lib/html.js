@@ -155,7 +155,7 @@ const FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com">'
 const TABS = [
   { key: 'sources', href: '/sources', label: 'Sources' },
   { key: 'groups', href: '/groups', label: 'Groups' },
-  { key: 'api', href: '/api', label: 'API' },
+  { key: 'api', href: '/api', label: 'API docs' },
   { key: 'about', href: '/about', label: 'About' },
   { key: 'logout', href: '/logout', label: 'Log out' },
 ];

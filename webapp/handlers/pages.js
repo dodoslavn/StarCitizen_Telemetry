@@ -262,7 +262,7 @@ function groupPage(req, res, ctx) {
         <button class="secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('gurl').value);this.textContent='Copied'">Copy</button>
         <a class="btn secondary" href="${esc(latestUrl)}" target="_blank">Open</a>
       </p>
-      <p class="muted">Add a <code>&amp;path=</code> to pull just part of it — see <a href="/api">API</a>.</p>
+      <p class="muted">Add a <code>&amp;path=</code> to pull just part of it — see the <a href="/api">API docs</a>.</p>
     </div>`;
 
   const ownerApi = isOwner ? `
@@ -376,7 +376,7 @@ function apiDocs(req, res, ctx) {
       ${sample ? `<p class="muted">Response:</p><pre>${esc(sample)}</pre>` : ''}</div>`;
 
   const body = `
-    <h1>API</h1>
+    <h1>API docs</h1>
     <p class="muted">All responses are JSON. The API is versioned under
       <code>${esc(pre)}</code> (the older <code>/api/…</code> paths still work).
       A source's bearer token comes from its <a href="/sources">Edit</a> page;
@@ -491,7 +491,7 @@ function apiDocs(req, res, ctx) {
       <code>404</code> unknown group · <code>400</code> invalid JSON body ·
       <code>413</code> body too large.</p></div>`;
 
-  return http.sendHtml(res, 200, layout({ title: 'API', user: ctx.user, active: 'api', body }));
+  return http.sendHtml(res, 200, layout({ title: 'API docs', user: ctx.user, active: 'api', body }));
 }
 
 module.exports = {
